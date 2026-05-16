@@ -4,23 +4,37 @@ import { supabase } from '../lib/supabase';
 
 export default function Home() {
   const [tires, setTires] = useState<any[]>([]);
+  const [q, setQ] = useState('');
 
   useEffect(() => {
     supabase.from('tires').select('*').order('created_at', { ascending: false })
       .then(({ data }) => setTires(data || []));
   }, []);
 
+  const shown = tires.filter((t) => {
+    const text = `${t.brand} ${t.model} ${t.size} ${t.season} ${t.shop}`.toLowerCase();
+    return text.includes(q.toLowerCase());
+  });
+
   return (
     <main style={{ padding: 16, fontFamily: 'sans-serif', maxWidth: 600, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 22 }}>TireOps — Inventory</h1>
-      <p style={{ color: '#666' }}>{tires.length} tires</p>
-      {tires.map((t) => (
-        <div key={t.id} style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, marginBottom: 8 }}>
+      <a href="/add" style={{ display: 'inline-block', padding: '8px 14px', background: '#E0500F',
+        color: '#fff', borderRadius: 8, textDecoration: 'none', marginBottom: 12 }}>+ Add tire</a>
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Search brand, size, season..."
+        style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8,
+                 border: '1px solid #ccc', marginBottom: 12 }}
+      />
+      <p style={{ color: '#666' }}>{shown.length} tires</p>
+      {shown.map((t) => (
+        <a key={t.id} href={`/edit/${t.id}`} style={{ display: 'block', textDecoration: 'none', color: 'inherit', border: '1px solid #ddd', borderRadius: 8, padding: 12, marginBottom: 8 }}>
           <div style={{ fontWeight: 600 }}>{t.size} — {t.brand} {t.model}</div>
           <div style={{ fontSize: 14, color: '#666' }}>
             {t.season} · {t.condition} · qty {t.quantity} · ${t.price}
           </div>
-        </div>
+        </a>
       ))}
     </main>
   );
