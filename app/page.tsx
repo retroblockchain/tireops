@@ -18,6 +18,11 @@ export default function Home() {
 
   return (
     <main style={{ padding: 16, fontFamily: 'sans-serif', maxWidth: 600, margin: '0 auto' }}>
+      <button onClick={() => supabase.auth.signOut()} style={{ float: 'right', fontSize: 13,
+        padding: '6px 10px', border: '1px solid #ccc', borderRadius: 6, background: '#fff' }}>
+        Sign out
+      </button>
+      <h1 style={{ fontSize: 22 }}>TireOps — Inventory</h1>
       <a href="/add" style={{ display: 'inline-block', padding: '8px 14px', background: '#E0500F',
         color: '#fff', borderRadius: 8, textDecoration: 'none', marginBottom: 12 }}>+ Add tire</a>
       <input
