@@ -18,19 +18,16 @@ export default function Home() {
 
   return (
     <main style={{ padding: 16, fontFamily: 'sans-serif', maxWidth: 600, margin: '0 auto' }}>
-      <button onClick={() => supabase.auth.signOut()} style={{ float: 'right', fontSize: 13,
-        padding: '6px 10px', border: '1px solid #ccc', borderRadius: 6, background: '#fff' }}>
+      <button onClick={() => supabase.auth.signOut()} style={{ float: 'right', fontSize: 13, padding: '6px 10px', border: 'none', borderRadius: 6, background: '#E0500F', color: '#fff' }}>
         Sign out
       </button>
       <h1 style={{ fontSize: 22 }}>TireOps — Inventory</h1>
-      <a href="/add" style={{ display: 'inline-block', padding: '8px 14px', background: '#E0500F',
-        color: '#fff', borderRadius: 8, textDecoration: 'none', marginBottom: 12 }}>+ Add tire</a>
+      <a href="/add" style={{ display: 'inline-block', padding: '8px 14px', background: '#E0500F', color: '#fff', borderRadius: 8, textDecoration: 'none', marginBottom: 12 }}>+ Add tire</a>
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Search brand, size, season..."
-        style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8,
-                 border: '1px solid #ccc', marginBottom: 12 }}
+        style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, border: '1px solid #ccc', marginBottom: 12 }}
       />
       <p style={{ color: '#666' }}>{shown.length} tires</p>
       {shown.map((t) => (
