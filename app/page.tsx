@@ -22,7 +22,10 @@ export default function Home() {
         Sign out
       </button>
       <h1 style={{ fontSize: 22 }}>TireOps — Inventory</h1>
-      <a href="/add" style={{ display: 'inline-block', padding: '8px 14px', background: '#E0500F', color: '#fff', borderRadius: 8, textDecoration: 'none', marginBottom: 12 }}>+ Add tire</a>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <a href="/add" style={{ padding: '8px 14px', background: '#E0500F', color: '#fff', borderRadius: 8, textDecoration: 'none' }}>+ Add tire</a>
+        <a href="/chat" style={{ padding: '8px 14px', background: '#fff', color: '#E0500F', border: '1px solid #E0500F', borderRadius: 8, textDecoration: 'none' }}>🎤 Voice chat</a>
+      </div>
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
