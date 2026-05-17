@@ -8,6 +8,8 @@ type ContentBlock =
   | { type: 'tool_result'; tool_use_id: string; content: string };
 type ApiMsg = { role: 'user' | 'assistant'; content: string | ContentBlock[] };
 
+type MicMode = 'ptt' | 'hands-free' | 'always-on';
+
 const ORANGE = '#E0500F';
 
 export default function ChatPage() {
@@ -18,8 +20,21 @@ export default function ChatPage() {
   const [supportsSTT, setSupportsSTT] = useState(true);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [micMode, setMicMode] = useState<MicMode>('ptt');
+
   const recogRef = useRef<unknown>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const micModeRef = useRef<MicMode>('ptt');
+  const desiredListeningRef = useRef(false);
+  const sendingRef = useRef(false);
+
+  useEffect(() => {
+    micModeRef.current = micMode;
+  }, [micMode]);
+
+  useEffect(() => {
+    sendingRef.current = sending;
+  }, [sending]);
 
   useEffect(() => {
     const w = window as unknown as {
@@ -35,7 +50,10 @@ export default function ChatPage() {
       lang: string;
       interimResults: boolean;
       continuous: boolean;
-      onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void;
+      onresult: (e: {
+        resultIndex?: number;
+        results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal?: boolean }>;
+      }) => void;
       onend: () => void;
       onerror: (e: { error: string }) => void;
       start: () => void;
@@ -45,15 +63,38 @@ export default function ChatPage() {
     r.interimResults = false;
     r.continuous = false;
     r.onresult = (e) => {
+      const idx = e.resultIndex ?? 0;
       let transcript = '';
-      for (let i = 0; i < e.results.length; i++) transcript += e.results[i][0].transcript;
+      for (let i = idx; i < e.results.length; i++) {
+        const res = e.results[i];
+        if (res.isFinal === false) continue;
+        transcript += res[0].transcript;
+      }
       transcript = transcript.trim();
-      if (transcript) void send(transcript);
+      if (!transcript) return;
+      if (sendingRef.current) return;
+      void send(transcript);
     };
-    r.onend = () => setListening(false);
+    r.onend = () => {
+      setListening(false);
+      if (desiredListeningRef.current && micModeRef.current !== 'ptt') {
+        window.setTimeout(() => {
+          if (!desiredListeningRef.current || micModeRef.current === 'ptt') return;
+          try {
+            r.continuous = true;
+            r.start();
+            setListening(true);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+          }
+        }, 150);
+      }
+    };
     r.onerror = (e) => {
       setListening(false);
-      setError(`mic: ${e.error}`);
+      if (e.error !== 'no-speech' && e.error !== 'aborted') {
+        setError(`mic: ${e.error}`);
+      }
     };
     recogRef.current = r;
   }, []);
@@ -70,21 +111,49 @@ export default function ChatPage() {
     window.speechSynthesis.speak(u);
   };
 
-  const toggleMic = () => {
-    const r = recogRef.current as { start: () => void; stop: () => void } | null;
+  const startListening = () => {
+    const r = recogRef.current as
+      | { start: () => void; continuous: boolean; interimResults: boolean }
+      | null;
     if (!r) return;
+    desiredListeningRef.current = true;
     setError(null);
-    if (listening) {
-      r.stop();
-      setListening(false);
-    } else {
+    try {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+      r.continuous = micModeRef.current !== 'ptt';
+      r.interimResults = false;
+      r.start();
+      setListening(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const stopListening = () => {
+    desiredListeningRef.current = false;
+    const r = recogRef.current as { stop: () => void } | null;
+    if (r) {
       try {
-        if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
-        r.start();
-        setListening(true);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        r.stop();
+      } catch {
+        /* ignore */
       }
+    }
+    setListening(false);
+  };
+
+  const toggleMic = () => {
+    if (listening) stopListening();
+    else startListening();
+  };
+
+  const changeMode = (mode: MicMode) => {
+    if (mode === micMode) return;
+    stopListening();
+    micModeRef.current = mode;
+    setMicMode(mode);
+    if (mode === 'always-on' && supportsSTT) {
+      window.setTimeout(() => startListening(), 50);
     }
   };
 
@@ -116,6 +185,17 @@ export default function ChatPage() {
     }
   };
 
+  const modeLabel: Record<MicMode, string> = {
+    ptt: 'Push-to-talk',
+    'hands-free': 'Hands-free',
+    'always-on': 'Always-on',
+  };
+  const modeHint: Record<MicMode, string> = {
+    ptt: 'Tap the mic to capture one command.',
+    'hands-free': 'Tap to start listening, tap again to stop.',
+    'always-on': 'Mic stays on continuously — best for quiet areas.',
+  };
+
   return (
     <main
       style={{
@@ -129,10 +209,93 @@ export default function ChatPage() {
         boxSizing: 'border-box',
       }}
     >
+      <style>{`
+        @keyframes tireops-pulse {
+          0% { transform: scale(0.9); opacity: 0.7; }
+          50% { transform: scale(1.15); opacity: 1; }
+          100% { transform: scale(0.9); opacity: 0.7; }
+        }
+      `}</style>
+
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <a href="/" style={{ color: ORANGE, textDecoration: 'none', fontSize: 14 }}>&larr; Inventory</a>
         <h1 style={{ fontSize: 20, margin: 0 }}>Voice chat</h1>
         <span style={{ width: 60 }} />
+      </div>
+
+      <div
+        role="group"
+        aria-label="Mic mode"
+        style={{
+          display: 'flex',
+          gap: 4,
+          padding: 4,
+          background: '#f0f0f0',
+          borderRadius: 10,
+          marginBottom: 8,
+        }}
+      >
+        {(['ptt', 'hands-free', 'always-on'] as MicMode[]).map((m) => {
+          const active = micMode === m;
+          return (
+            <button
+              key={m}
+              onClick={() => changeMode(m)}
+              disabled={!supportsSTT}
+              aria-pressed={active}
+              style={{
+                flex: 1,
+                padding: '8px 6px',
+                fontSize: 13,
+                fontWeight: active ? 600 : 400,
+                background: active ? '#fff' : 'transparent',
+                color: active ? ORANGE : '#444',
+                border: 'none',
+                borderRadius: 8,
+                cursor: supportsSTT ? 'pointer' : 'not-allowed',
+                boxShadow: active ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+              }}
+            >
+              {modeLabel[m]}
+            </button>
+          );
+        })}
+      </div>
+      <p style={{ fontSize: 12, color: '#666', margin: '0 0 10px', minHeight: 16 }}>
+        {modeHint[micMode]}
+      </p>
+
+      <div style={{ minHeight: 28, marginBottom: 6 }}>
+        {listening && (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '4px 10px',
+              background: '#fff0e6',
+              border: `1px solid ${ORANGE}`,
+              color: ORANGE,
+              borderRadius: 999,
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            <span
+              style={{
+                display: 'inline-block',
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                background: ORANGE,
+                animation: 'tireops-pulse 1.1s ease-in-out infinite',
+              }}
+            />
+            Listening — {modeLabel[micMode]}
+          </div>
+        )}
       </div>
 
       <div
@@ -191,6 +354,7 @@ export default function ChatPage() {
           onClick={toggleMic}
           disabled={!supportsSTT || sending}
           aria-label={listening ? 'stop listening' : 'start listening'}
+          aria-pressed={listening}
           style={{
             width: 64,
             height: 64,
