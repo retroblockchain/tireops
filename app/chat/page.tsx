@@ -11,7 +11,7 @@ type ApiMsg = { role: 'user' | 'assistant'; content: string | ContentBlock[] };
 type MicMode = 'ptt' | 'hands-free' | 'always-on';
 
 const ORANGE = '#E0500F';
-const SILENCE_GRACE_MS = 2500;
+const SILENCE_GRACE_MS = 4500;
 
 export default function ChatPage() {
   const [uiMessages, setUiMessages] = useState<UiMsg[]>([]);
@@ -23,6 +23,7 @@ export default function ChatPage() {
   const [error, setError] = useState<string | null>(null);
   const [micMode, setMicMode] = useState<MicMode>('ptt');
   const [speaking, setSpeaking] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState('');
 
   const recogRef = useRef<unknown>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -90,6 +91,7 @@ export default function ChatPage() {
       }
       transcriptBufferRef.current = '';
       interimBufferRef.current = '';
+      setLiveTranscript('');
       if (micModeRef.current === 'ptt') stopListening();
       void sendRef.current(text);
     };
@@ -115,6 +117,9 @@ export default function ChatPage() {
         }
       }
       interimBufferRef.current = newInterim.trim();
+      setLiveTranscript(
+        (transcriptBufferRef.current + ' ' + interimBufferRef.current).trim(),
+      );
       resetSilenceTimer();
     };
     r.onend = () => {
@@ -143,7 +148,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [uiMessages, sending]);
+  }, [uiMessages, sending, liveTranscript]);
 
   const speak = (text: string) => {
     if (!text || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
@@ -171,6 +176,7 @@ export default function ChatPage() {
     desiredListeningRef.current = true;
     transcriptBufferRef.current = '';
     interimBufferRef.current = '';
+    setLiveTranscript('');
     if (silenceTimerRef.current != null) {
       window.clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
@@ -198,6 +204,7 @@ export default function ChatPage() {
     }
     transcriptBufferRef.current = '';
     interimBufferRef.current = '';
+    setLiveTranscript('');
     const r = recogRef.current as { stop: () => void } | null;
     if (r) {
       try {
@@ -464,6 +471,37 @@ export default function ChatPage() {
             </div>
           </div>
         ))}
+        {listening && liveTranscript && (
+          <div
+            aria-live="polite"
+            aria-atomic="true"
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              marginBottom: 8,
+            }}
+          >
+            <div
+              style={{
+                maxWidth: '80%',
+                padding: '8px 12px',
+                borderRadius: 14,
+                background: '#fff',
+                color: '#666',
+                border: `2px dashed ${ORANGE}`,
+                fontSize: 15,
+                fontStyle: 'italic',
+                whiteSpace: 'pre-wrap',
+                overflowWrap: 'anywhere',
+                wordBreak: 'break-word',
+                lineHeight: 1.35,
+              }}
+            >
+              {liveTranscript}
+              <span style={{ color: ORANGE, marginLeft: 4 }}>▍</span>
+            </div>
+          </div>
+        )}
         {sending && (
           <div style={{ color: '#888', fontSize: 13, fontStyle: 'italic' }}>thinking…</div>
         )}
