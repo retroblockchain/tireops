@@ -25,6 +25,23 @@ type SpeechRecognitionLike = {
 
 const ORANGE = '#E0500F';
 
+// Build the displayed/dispatched transcript from the three storage layers.
+// finals is keyed by resultIndex (the dedup key) so iteration is index-sorted.
+function combineTranscript(
+  committed: string,
+  finals: Map<number, string>,
+  interim: string,
+): string {
+  const finalsText = Array.from(finals.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([, t]) => t.trim())
+    .filter(Boolean)
+    .join(' ');
+  return (committed + ' ' + finalsText + ' ' + interim)
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export default function ChatPage() {
   const [uiMessages, setUiMessages] = useState<UiMsg[]>([]);
   const [apiMessages, setApiMessages] = useState<ApiMsg[]>([]);
@@ -39,18 +56,35 @@ export default function ChatPage() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const sendRef = useRef<(text: string) => Promise<void>>(async () => {});
 
+  // ---- Speech-to-text storage (mobile-reliable) ----
+  // recogRef: the single recognizer instance.
+  // wantListeningRef: user toggle. True between startListening() and stopListening().
+  //                   Drives whether onend auto-restarts.
+  // sentRef: single-dispatch guard for the OVERALL listening window. Once flipped
+  //          (in stopListening), onresult is a no-op and onend won't restart.
+  // committedTextRef: text rolled up from completed SUB-sessions in the current window.
+  // currentFinalsRef: finals from the CURRENT sub-session, keyed by resultIndex.
+  //                   Map.set() is idempotent on the same key — duplicate fires from
+  //                   mobile Chrome at the same index just overwrite, never append.
+  // lastIndexRef: highest resultIndex captured in the current sub-session. Used as a
+  //               second guard: we only accept a final if its index is greater.
+  // currentInterimRef: current sub-session in-flight interim text, replaced wholesale.
+  // restartTimerRef: pending setTimeout id for the onend auto-restart.
   const recogRef = useRef<SpeechRecognitionLike | null>(null);
-  const finalBufRef = useRef('');
-  const interimBufRef = useRef('');
+  const wantListeningRef = useRef(false);
   const sentRef = useRef(false);
+  const committedTextRef = useRef('');
+  const currentFinalsRef = useRef<Map<number, string>>(new Map());
+  const lastIndexRef = useRef(-1);
+  const currentInterimRef = useRef('');
+  const restartTimerRef = useRef<number | null>(null);
 
-  // Keep sendRef pointed at the latest send() so handlers bound once at
-  // mount don't capture a stale uiMessages/apiMessages closure.
+  // Keep sendRef pointed at the latest send() — handlers bound once at mount
+  // would otherwise capture a stale uiMessages/apiMessages closure.
   useEffect(() => {
     sendRef.current = send;
   });
 
-  // -------- Speech-to-text (single tap-to-start / tap-to-stop) --------
   useEffect(() => {
     const w = window as unknown as {
       SpeechRecognition?: new () => SpeechRecognitionLike;
@@ -63,37 +97,105 @@ export default function ChatPage() {
     }
     const r = new Ctor();
     r.lang = 'en-US';
-    r.continuous = true;
+    // continuous=false is the mobile-Chrome-reliable mode. Android often ignores
+    // continuous=true and ends after the first utterance anyway. We synthesize
+    // continuous behavior via the onend auto-restart below.
+    r.continuous = false;
     r.interimResults = true;
 
+    // Fold the current sub-session's finals into committedTextRef and reset
+    // sub-session storage. Called on every onend (before any restart).
+    const rotateSubSession = () => {
+      const subFinals = Array.from(currentFinalsRef.current.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([, t]) => t.trim())
+        .filter(Boolean)
+        .join(' ');
+      if (subFinals) {
+        committedTextRef.current = (committedTextRef.current + ' ' + subFinals)
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+      currentFinalsRef.current = new Map();
+      currentInterimRef.current = '';
+      lastIndexRef.current = -1;
+    };
+
     r.onresult = (e) => {
+      // Hard gate: once the overall session has been committed, drop everything.
       if (sentRef.current) return;
-      const start = e.resultIndex ?? 0;
-      let newFinal = '';
-      let interim = '';
-      for (let i = start; i < e.results.length; i++) {
+
+      let interimAccum = '';
+      for (let i = 0; i < e.results.length; i++) {
         const res = e.results[i];
         const t = res[0]?.transcript ?? '';
-        if (res.isFinal) newFinal += t;
-        else interim += t;
+        if (!t) continue;
+
+        if (res.isFinal) {
+          // Dedup guard: index must be strictly greater than the highest already
+          // captured in this sub-session. Map.set() is also idempotent on the
+          // same key, so a re-fire at index N (the mobile bug) is dropped here.
+          if (i > lastIndexRef.current) {
+            currentFinalsRef.current.set(i, t);
+            lastIndexRef.current = i;
+          }
+        } else {
+          // Interim: each event is the full current interim view, just collect it.
+          interimAccum += t;
+        }
       }
-      if (newFinal) {
-        finalBufRef.current = (finalBufRef.current + ' ' + newFinal).replace(/\s+/g, ' ');
-      }
-      interimBufRef.current = interim;
+      currentInterimRef.current = interimAccum.trim();
+
       setLiveTranscript(
-        (finalBufRef.current + ' ' + interimBufRef.current).replace(/\s+/g, ' ').trim(),
+        combineTranscript(
+          committedTextRef.current,
+          currentFinalsRef.current,
+          currentInterimRef.current,
+        ),
       );
     };
 
     r.onend = () => {
-      setListening(false);
+      // Always roll the sub-session into committed first — whether or not we
+      // restart, we don't want to lose what was already finalized.
+      rotateSubSession();
+
+      if (wantListeningRef.current && !sentRef.current) {
+        // User still has the mic toggled on — synthesize continuous behavior
+        // by restarting the recognizer. Slight delay lets the engine fully
+        // release; one retry covers the occasional InvalidStateError race.
+        if (restartTimerRef.current != null) {
+          window.clearTimeout(restartTimerRef.current);
+        }
+        restartTimerRef.current = window.setTimeout(() => {
+          restartTimerRef.current = null;
+          if (!wantListeningRef.current || sentRef.current) return;
+          try {
+            r.start();
+          } catch {
+            restartTimerRef.current = window.setTimeout(() => {
+              restartTimerRef.current = null;
+              if (!wantListeningRef.current || sentRef.current) return;
+              try {
+                r.start();
+              } catch (err2) {
+                setError(err2 instanceof Error ? err2.message : String(err2));
+                wantListeningRef.current = false;
+                setListening(false);
+              }
+            }, 250);
+          }
+        }, 60);
+      } else {
+        setListening(false);
+      }
     };
 
     r.onerror = (e) => {
       if (e.error !== 'no-speech' && e.error !== 'aborted') {
         setError(`mic: ${e.error}`);
       }
+      // onend fires after onerror; the restart logic there handles continuation.
     };
 
     recogRef.current = r;
@@ -102,37 +204,72 @@ export default function ChatPage() {
   const startListening = () => {
     const r = recogRef.current;
     if (!r) return;
-    finalBufRef.current = '';
-    interimBufRef.current = '';
+
+    // Full reset of every STT buffer + the dedup tracker + the guards.
+    committedTextRef.current = '';
+    currentFinalsRef.current = new Map();
+    currentInterimRef.current = '';
+    lastIndexRef.current = -1;
+    wantListeningRef.current = true;
     sentRef.current = false;
+    if (restartTimerRef.current != null) {
+      window.clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
+
     setLiveTranscript('');
     setError(null);
+
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       setSpeaking(false);
     }
+
     try {
       r.start();
       setListening(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      wantListeningRef.current = false;
     }
   };
 
   const stopListening = () => {
     const r = recogRef.current;
+
+    // Duplicate-tap defense: if we already committed this listening window,
+    // just make sure the recognizer is told to stop and bail.
     if (sentRef.current) {
-      try { r?.stop(); } catch { /* already stopped */ }
+      wantListeningRef.current = false;
+      try { r?.stop(); } catch { /* ignore */ }
       return;
     }
+
+    // Flip both flags synchronously BEFORE anything async, so any concurrent
+    // onresult / onend is shut out and the auto-restart won't fire.
+    wantListeningRef.current = false;
     sentRef.current = true;
-    const text = (finalBufRef.current + ' ' + interimBufRef.current)
-      .replace(/\s+/g, ' ')
-      .trim();
-    finalBufRef.current = '';
-    interimBufRef.current = '';
+
+    if (restartTimerRef.current != null) {
+      window.clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
+
+    const text = combineTranscript(
+      committedTextRef.current,
+      currentFinalsRef.current,
+      currentInterimRef.current,
+    );
+
+    committedTextRef.current = '';
+    currentFinalsRef.current = new Map();
+    currentInterimRef.current = '';
+    lastIndexRef.current = -1;
     setLiveTranscript('');
+    setListening(false);
+
     try { r?.stop(); } catch { /* already stopped */ }
+
     if (text) void sendRef.current(text);
   };
 
@@ -140,8 +277,6 @@ export default function ChatPage() {
     if (listening) stopListening();
     else startListening();
   };
-
-  // -------- end speech-to-text --------
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
