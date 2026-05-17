@@ -9,9 +9,17 @@ type ContentBlock =
   | { type: 'tool_result'; tool_use_id: string; content: string };
 type ApiMsg = { role: 'user' | 'assistant'; content: string | ContentBlock[] };
 
-const VOICES = ['alloy', 'echo', 'onyx', 'shimmer', 'nova'] as const;
+const VOICES = ['shimmer', 'nova', 'onyx', 'echo', 'ash', 'coral'] as const;
 type Voice = (typeof VOICES)[number];
 const DEFAULT_VOICE: Voice = 'shimmer';
+const VOICE_DESCRIPTIONS: Record<Voice, string> = {
+  shimmer: 'Shimmer — soft & gentle',
+  nova: 'Nova — bright & energetic',
+  onyx: 'Onyx — deep & authoritative',
+  echo: 'Echo — clear & articulate',
+  ash: 'Ash — warm & friendly',
+  coral: 'Coral — cheerful & warm',
+};
 
 // Pick a MIME type that the browser can record AND that Whisper accepts.
 // Android Chrome → webm/opus. iOS Safari → mp4. Whisper handles both.
@@ -445,54 +453,66 @@ export default function ChatPage() {
         Tap the mic, speak naturally, then tap stop. The AI will confirm before saving any changes.
       </p>
 
-      <div
-        role="group"
-        aria-label="AI voice"
+      <label
         style={{
-          display: 'flex',
-          flexWrap: 'wrap',
+          display: 'inline-flex',
           alignItems: 'center',
-          gap: 4,
+          gap: 6,
           marginBottom: 8,
+          fontSize: 11,
+          color: COLORS.textMuted,
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: 0.5,
         }}
       >
-        <span
-          style={{
-            fontSize: 11,
-            color: COLORS.textMuted,
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            letterSpacing: 0.5,
-            marginRight: 4,
-          }}
-        >
-          Voice
+        Voice
+        <span style={{ position: 'relative', display: 'inline-block' }}>
+          <select
+            value={selectedVoice}
+            onChange={(e) => setSelectedVoice(e.target.value as Voice)}
+            aria-label="AI voice"
+            style={{
+              appearance: 'none',
+              WebkitAppearance: 'none',
+              MozAppearance: 'none',
+              padding: '5px 24px 5px 11px',
+              fontSize: 12,
+              fontWeight: 700,
+              textTransform: 'none',
+              letterSpacing: 0,
+              background: COLORS.redSoftBg,
+              color: COLORS.red,
+              border: `1px solid ${COLORS.red}`,
+              borderRadius: 999,
+              cursor: 'pointer',
+              lineHeight: 1.2,
+              fontFamily: 'inherit',
+            }}
+          >
+            {VOICES.map((v) => (
+              <option key={v} value={v}>
+                {VOICE_DESCRIPTIONS[v]}
+              </option>
+            ))}
+          </select>
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              right: 9,
+              top: '50%',
+              transform: 'translateY(-55%)',
+              pointerEvents: 'none',
+              fontSize: 10,
+              color: COLORS.red,
+              lineHeight: 1,
+            }}
+          >
+            ▾
+          </span>
         </span>
-        {VOICES.map((v) => {
-          const active = v === selectedVoice;
-          return (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setSelectedVoice(v)}
-              aria-pressed={active}
-              style={{
-                padding: '5px 11px',
-                fontSize: 12,
-                fontWeight: active ? 700 : 500,
-                background: active ? COLORS.redSoftBg : 'transparent',
-                color: active ? COLORS.red : COLORS.textBody,
-                border: `1px solid ${active ? COLORS.red : COLORS.borderStrong}`,
-                borderRadius: 999,
-                cursor: 'pointer',
-                lineHeight: 1.2,
-              }}
-            >
-              {v}
-            </button>
-          );
-        })}
-      </div>
+      </label>
 
       <div
         style={{

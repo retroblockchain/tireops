@@ -4,7 +4,7 @@ export const runtime = 'nodejs';
 
 const OPENAI_URL = 'https://api.openai.com/v1/audio/speech';
 const MODEL = 'tts-1';
-const VALID_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const;
+const VALID_VOICES = ['alloy', 'ash', 'coral', 'echo', 'fable', 'nova', 'onyx', 'shimmer'] as const;
 type Voice = (typeof VALID_VOICES)[number];
 const DEFAULT_VOICE: Voice = 'fable';
 
