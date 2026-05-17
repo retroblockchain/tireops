@@ -201,12 +201,14 @@ export default function ChatPage() {
       style={{
         padding: 16,
         fontFamily: 'sans-serif',
+        width: '100%',
         maxWidth: 600,
         margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
         height: '100dvh',
         boxSizing: 'border-box',
+        overflowX: 'hidden',
       }}
     >
       <style>{`
@@ -228,6 +230,7 @@ export default function ChatPage() {
         aria-label="Mic mode"
         style={{
           display: 'flex',
+          flexWrap: 'wrap',
           gap: 4,
           padding: 4,
           background: '#f0f0f0',
@@ -244,7 +247,8 @@ export default function ChatPage() {
               disabled={!supportsSTT}
               aria-pressed={active}
               style={{
-                flex: 1,
+                flex: '1 1 80px',
+                minWidth: 0,
                 padding: '8px 6px',
                 fontSize: 13,
                 fontWeight: active ? 600 : 400,
@@ -334,6 +338,8 @@ export default function ChatPage() {
                 border: m.role === 'user' ? 'none' : '1px solid #ddd',
                 fontSize: 15,
                 whiteSpace: 'pre-wrap',
+                overflowWrap: 'anywhere',
+                wordBreak: 'break-word',
                 lineHeight: 1.35,
               }}
             >
@@ -380,10 +386,13 @@ export default function ChatPage() {
           placeholder={supportsSTT ? 'or type here…' : 'mic not supported — type here'}
           style={{
             flex: 1,
+            minWidth: 0,
+            width: '100%',
             padding: 12,
             fontSize: 16,
             borderRadius: 8,
             border: '1px solid #ccc',
+            boxSizing: 'border-box',
           }}
         />
         <button
