@@ -1,10 +1,16 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import { COLORS } from '../../lib/theme';
+import { uploadTirePhoto } from '../../lib/photos';
 
-type Field = { key: string; label: string; placeholder?: string; type?: string };
+type Field = {
+  key: string;
+  label: string;
+  placeholder?: string;
+  type?: string;
+};
 const FIELDS: Field[] = [
   { key: 'shop', label: 'Shop', placeholder: 'e.g. Main' },
   { key: 'brand', label: 'Brand', placeholder: 'e.g. Michelin' },
@@ -21,10 +27,59 @@ const FIELDS: Field[] = [
 export default function AddTire() {
   const router = useRouter();
   const [tire, setTire] = useState<any>({});
+  const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Rebuild preview URLs whenever the pending list changes; revoke old ones.
+  useEffect(() => {
+    const urls = pendingPhotos.map((f) => URL.createObjectURL(f));
+    setPreviews(urls);
+    return () => {
+      for (const u of urls) {
+        try { URL.revokeObjectURL(u); } catch { /* ignore */ }
+      }
+    };
+  }, [pendingPhotos]);
+
+  const onFilesPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setPendingPhotos((prev) => [...prev, ...files]);
+    // reset input so the same file can be re-picked if removed
+    e.target.value = '';
+  };
+
+  const removePending = (i: number) => {
+    setPendingPhotos((prev) => prev.filter((_, idx) => idx !== i));
+  };
 
   const save = async () => {
-    await supabase.from('tires').insert({ ...tire, shop: tire.shop || 'TEST' });
-    router.push('/');
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const { data: inserted, error: insertError } = await supabase
+        .from('tires')
+        .insert({ ...tire, shop: tire.shop || 'TEST' })
+        .select()
+        .single();
+      if (insertError || !inserted) {
+        throw new Error(insertError?.message || 'failed to save tire');
+      }
+      // Upload photos in sequence so order is preserved (oldest first = first uploaded).
+      for (const f of pendingPhotos) {
+        await uploadTirePhoto(f, inserted.id);
+      }
+      router.push('/');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setSaving(false);
+    }
   };
 
   return (
@@ -40,7 +95,14 @@ export default function AddTire() {
         boxSizing: 'border-box',
       }}
     >
-      <header style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 12 }}>
+      <header
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          marginBottom: 12,
+        }}
+      >
         <a
           href="/"
           style={{
@@ -66,7 +128,9 @@ export default function AddTire() {
       >
         Add tire
       </h1>
-      <p style={{ color: COLORS.textMuted, fontSize: 13, margin: '0 0 16px' }}>
+      <p
+        style={{ color: COLORS.textMuted, fontSize: 13, margin: '0 0 16px' }}
+      >
         Fill in what you know — you can edit the rest later.
       </p>
 
@@ -104,8 +168,137 @@ export default function AddTire() {
         </div>
       ))}
 
+      {/* PHOTOS */}
+      <div style={{ marginTop: 18, marginBottom: 12 }}>
+        <label
+          style={{
+            display: 'block',
+            fontSize: 13,
+            color: COLORS.textBody,
+            fontWeight: 600,
+            marginBottom: 6,
+          }}
+        >
+          Photos
+        </label>
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          multiple
+          onChange={onFilesPicked}
+          style={{ display: 'none' }}
+        />
+        <input
+          ref={galleryInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={onFilesPicked}
+          style={{ display: 'none' }}
+        />
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            style={{
+              flex: '1 1 140px',
+              padding: '10px 12px',
+              fontSize: 14,
+              fontWeight: 600,
+              background: COLORS.surface,
+              color: COLORS.ink,
+              border: `1px solid ${COLORS.borderStrong}`,
+              borderRadius: 8,
+              cursor: 'pointer',
+            }}
+          >
+            📷 Take photo
+          </button>
+          <button
+            type="button"
+            onClick={() => galleryInputRef.current?.click()}
+            style={{
+              flex: '1 1 140px',
+              padding: '10px 12px',
+              fontSize: 14,
+              fontWeight: 600,
+              background: COLORS.surface,
+              color: COLORS.ink,
+              border: `1px solid ${COLORS.borderStrong}`,
+              borderRadius: 8,
+              cursor: 'pointer',
+            }}
+          >
+            🖼 Choose photo
+          </button>
+        </div>
+        {previews.length > 0 && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))',
+              gap: 8,
+            }}
+          >
+            {previews.map((src, i) => (
+              <div
+                key={i}
+                style={{
+                  position: 'relative',
+                  paddingTop: '100%',
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  background: COLORS.surfaceSoft,
+                  border: `1px solid ${COLORS.border}`,
+                }}
+              >
+                <img
+                  src={src}
+                  alt=""
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => removePending(i)}
+                  aria-label="Remove photo"
+                  style={{
+                    position: 'absolute',
+                    top: 4,
+                    right: 4,
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    border: 'none',
+                    background: 'rgba(0,0,0,0.7)',
+                    color: '#fff',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    lineHeight: 1,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <button
         onClick={save}
+        disabled={saving}
         style={{
           padding: 14,
           fontSize: 16,
@@ -115,12 +308,18 @@ export default function AddTire() {
           border: 'none',
           borderRadius: 8,
           fontWeight: 700,
-          cursor: 'pointer',
+          cursor: saving ? 'not-allowed' : 'pointer',
+          opacity: saving ? 0.6 : 1,
           marginTop: 8,
         }}
       >
-        Save
+        {saving ? 'Saving…' : 'Save'}
       </button>
+      {error && (
+        <p style={{ color: COLORS.redDeep, fontSize: 13, marginTop: 8 }}>
+          {error}
+        </p>
+      )}
     </main>
   );
 }
