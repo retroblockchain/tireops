@@ -23,14 +23,10 @@ export default function ChatPage() {
 
   const recogRef = useRef<unknown>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const sendingRef = useRef(false);
   const transcriptBufferRef = useRef<string>('');
   const interimBufferRef = useRef<string>('');
+  const sentForSessionRef = useRef(false);
   const sendRef = useRef<(text: string) => Promise<void>>(async () => {});
-
-  useEffect(() => {
-    sendingRef.current = sending;
-  }, [sending]);
 
   useEffect(() => {
     sendRef.current = send;
@@ -63,37 +59,31 @@ export default function ChatPage() {
     r.interimResults = true;
     r.continuous = true;
 
-    const finalizeAndSendCurrent = () => {
-      const text = (transcriptBufferRef.current + ' ' + interimBufferRef.current)
-        .replace(/\s+/g, ' ')
-        .trim();
-      transcriptBufferRef.current = '';
-      interimBufferRef.current = '';
-      setLiveTranscript('');
-      if (text && !sendingRef.current) {
-        void sendRef.current(text);
-      }
-    };
-
     r.onresult = (e) => {
-      let finalText = '';
+      if (sentForSessionRef.current) return;
+      const start = e.resultIndex ?? 0;
+      let newFinalText = '';
       let interimText = '';
-      for (let i = 0; i < e.results.length; i++) {
+      for (let i = start; i < e.results.length; i++) {
         const res = e.results[i];
         const t = res[0]?.transcript ?? '';
-        if (res.isFinal) finalText += t;
+        if (res.isFinal) newFinalText += t;
         else interimText += t;
       }
-      transcriptBufferRef.current = finalText;
+      if (newFinalText) {
+        transcriptBufferRef.current = (transcriptBufferRef.current + ' ' + newFinalText)
+          .replace(/\s+/g, ' ');
+      }
       interimBufferRef.current = interimText;
       setLiveTranscript(
-        (finalText + ' ' + interimText).replace(/\s+/g, ' ').trim(),
+        (transcriptBufferRef.current + ' ' + interimBufferRef.current)
+          .replace(/\s+/g, ' ')
+          .trim(),
       );
     };
 
     r.onend = () => {
       setListening(false);
-      finalizeAndSendCurrent();
     };
 
     r.onerror = (e) => {
@@ -134,6 +124,7 @@ export default function ChatPage() {
     if (!r) return;
     transcriptBufferRef.current = '';
     interimBufferRef.current = '';
+    sentForSessionRef.current = false;
     setLiveTranscript('');
     setError(null);
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -152,12 +143,32 @@ export default function ChatPage() {
 
   const stopListening = () => {
     const r = recogRef.current as { stop: () => void } | null;
+    if (sentForSessionRef.current) {
+      if (r) {
+        try {
+          r.stop();
+        } catch {
+          /* ignore */
+        }
+      }
+      return;
+    }
+    sentForSessionRef.current = true;
+    const text = (transcriptBufferRef.current + ' ' + interimBufferRef.current)
+      .replace(/\s+/g, ' ')
+      .trim();
+    transcriptBufferRef.current = '';
+    interimBufferRef.current = '';
+    setLiveTranscript('');
     if (r) {
       try {
         r.stop();
       } catch {
         /* ignore */
       }
+    }
+    if (text) {
+      void sendRef.current(text);
     }
   };
 

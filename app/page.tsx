@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { APP_VERSION } from '../lib/version';
 
 export default function Home() {
   const [tires, setTires] = useState<any[]>([]);
@@ -41,6 +42,9 @@ export default function Home() {
           </div>
         </a>
       ))}
+      <p style={{ fontSize: 11, color: '#999', textAlign: 'center', marginTop: 24, marginBottom: 8 }}>
+        {APP_VERSION}
+      </p>
     </main>
   );
 }
