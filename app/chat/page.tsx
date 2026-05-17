@@ -64,7 +64,9 @@ export default function ChatPage() {
     r.continuous = true;
 
     const finalizeAndSendCurrent = () => {
-      const text = (transcriptBufferRef.current + ' ' + interimBufferRef.current).trim();
+      const text = (transcriptBufferRef.current + ' ' + interimBufferRef.current)
+        .replace(/\s+/g, ' ')
+        .trim();
       transcriptBufferRef.current = '';
       interimBufferRef.current = '';
       setLiveTranscript('');
@@ -74,22 +76,18 @@ export default function ChatPage() {
     };
 
     r.onresult = (e) => {
-      const idx = e.resultIndex ?? 0;
-      let newInterim = '';
-      for (let i = idx; i < e.results.length; i++) {
+      let finalText = '';
+      let interimText = '';
+      for (let i = 0; i < e.results.length; i++) {
         const res = e.results[i];
-        if (res.isFinal) {
-          const chunk = res[0].transcript.trim();
-          if (chunk) {
-            transcriptBufferRef.current = (transcriptBufferRef.current + ' ' + chunk).trim();
-          }
-        } else {
-          newInterim += res[0].transcript;
-        }
+        const t = res[0]?.transcript ?? '';
+        if (res.isFinal) finalText += t;
+        else interimText += t;
       }
-      interimBufferRef.current = newInterim.trim();
+      transcriptBufferRef.current = finalText;
+      interimBufferRef.current = interimText;
       setLiveTranscript(
-        (transcriptBufferRef.current + ' ' + interimBufferRef.current).trim(),
+        (finalText + ' ' + interimText).replace(/\s+/g, ' ').trim(),
       );
     };
 
