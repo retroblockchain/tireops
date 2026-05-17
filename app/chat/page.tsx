@@ -9,7 +9,7 @@ type ContentBlock =
   | { type: 'tool_result'; tool_use_id: string; content: string };
 type ApiMsg = { role: 'user' | 'assistant'; content: string | ContentBlock[] };
 
-const VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const;
+const VOICES = ['alloy', 'echo', 'fable', 'onyx'] as const;
 type Voice = (typeof VOICES)[number];
 const DEFAULT_VOICE: Voice = 'fable';
 
@@ -251,13 +251,25 @@ export default function ChatPage() {
     setError(null);
     stopSpeaking();
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Narrow constraints: mono + 16kHz hint matches Whisper's internal target,
+      // so the encoder produces a much smaller file (faster finalize + upload).
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          sampleRate: 16000,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
       streamRef.current = stream;
       audioChunksRef.current = [];
       const mimeType = pickMimeType();
-      const recorder = mimeType
-        ? new MediaRecorder(stream, { mimeType })
-        : new MediaRecorder(stream);
+      // 32 kbps opus is plenty for speech intelligibility — Whisper doesn't
+      // care about audio fidelity, so cap the bitrate to shrink the upload.
+      const recorderOpts: MediaRecorderOptions = { audioBitsPerSecond: 32000 };
+      if (mimeType) recorderOpts.mimeType = mimeType;
+      const recorder = new MediaRecorder(stream, recorderOpts);
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
@@ -488,8 +500,7 @@ export default function ChatPage() {
           flexWrap: 'wrap',
           alignItems: 'center',
           gap: 8,
-          minHeight: 32,
-          marginBottom: 6,
+          marginBottom: recording || transcribing ? 6 : 0,
         }}
       >
         {recording && (
@@ -551,28 +562,6 @@ export default function ChatPage() {
             />
             Transcribing your message…
           </div>
-        )}
-        {speaking && (
-          <button
-            type="button"
-            onClick={stopSpeaking}
-            aria-label="Stop voice playback"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '4px 12px',
-              fontSize: 13,
-              fontWeight: 600,
-              background: COLORS.surface,
-              color: COLORS.textBody,
-              border: `1px solid ${COLORS.borderStrong}`,
-              borderRadius: 999,
-              cursor: 'pointer',
-            }}
-          >
-            🔇 Stop voice
-          </button>
         )}
       </div>
 
@@ -639,6 +628,37 @@ export default function ChatPage() {
           </div>
         )}
       </div>
+
+      {speaking && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            marginBottom: 8,
+          }}
+        >
+          <button
+            type="button"
+            onClick={stopSpeaking}
+            aria-label="Stop voice playback"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 14px',
+              fontSize: 13,
+              fontWeight: 600,
+              background: COLORS.surface,
+              color: COLORS.textBody,
+              border: `1px solid ${COLORS.borderStrong}`,
+              borderRadius: 999,
+              cursor: 'pointer',
+            }}
+          >
+            🔇 Stop voice
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <button
