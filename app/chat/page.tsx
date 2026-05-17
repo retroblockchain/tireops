@@ -9,6 +9,10 @@ type ContentBlock =
   | { type: 'tool_result'; tool_use_id: string; content: string };
 type ApiMsg = { role: 'user' | 'assistant'; content: string | ContentBlock[] };
 
+const VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const;
+type Voice = (typeof VOICES)[number];
+const DEFAULT_VOICE: Voice = 'fable';
+
 // Pick a MIME type that the browser can record AND that Whisper accepts.
 // Android Chrome → webm/opus. iOS Safari → mp4. Whisper handles both.
 function pickMimeType(): string {
@@ -42,6 +46,7 @@ export default function ChatPage() {
   const [supportsRecording, setSupportsRecording] = useState(true);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [selectedVoice, setSelectedVoice] = useState<Voice>(DEFAULT_VOICE);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const sendRef = useRef<(text: string) => Promise<void>>(async () => {});
@@ -54,6 +59,7 @@ export default function ChatPage() {
   // TTS playback
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const ttsUrlRef = useRef<string | null>(null);
+  const speakAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     sendRef.current = send;
@@ -77,6 +83,9 @@ export default function ChatPage() {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         try { mediaRecorderRef.current.stop(); } catch { /* ignore */ }
       }
+      if (speakAbortRef.current) {
+        try { speakAbortRef.current.abort(); } catch { /* ignore */ }
+      }
       if (ttsAudioRef.current) {
         try { ttsAudioRef.current.pause(); } catch { /* ignore */ }
       }
@@ -86,10 +95,19 @@ export default function ChatPage() {
     };
   }, []);
 
-  // -------- TTS (OpenAI) --------
+  // -------- TTS (OpenAI, streaming for low latency) --------
   const stopSpeaking = () => {
+    if (speakAbortRef.current) {
+      try { speakAbortRef.current.abort(); } catch { /* ignore */ }
+      speakAbortRef.current = null;
+    }
     if (ttsAudioRef.current) {
-      try { ttsAudioRef.current.pause(); } catch { /* ignore */ }
+      const a = ttsAudioRef.current;
+      // Detach handlers so onerror/onended after pause don't re-trigger us.
+      a.onplay = null;
+      a.onended = null;
+      a.onerror = null;
+      try { a.pause(); } catch { /* ignore */ }
       ttsAudioRef.current = null;
     }
     if (ttsUrlRef.current) {
@@ -99,33 +117,125 @@ export default function ChatPage() {
     setSpeaking(false);
   };
 
+  // Stream OpenAI's MP3 directly into a MediaSource so playback starts on the
+  // first audio frames, not after the whole file arrives.
+  const playStreamingMSE = (res: Response, signal: AbortSignal) =>
+    new Promise<void>((resolve) => {
+      if (!res.body) return resolve();
+
+      const mediaSource = new MediaSource();
+      const url = URL.createObjectURL(mediaSource);
+      ttsUrlRef.current = url;
+
+      const audio = new Audio();
+      ttsAudioRef.current = audio;
+      audio.onplay = () => setSpeaking(true);
+      audio.onended = () => { stopSpeaking(); resolve(); };
+      audio.onerror = () => { stopSpeaking(); resolve(); };
+      audio.src = url;
+
+      const onAbort = () => { stopSpeaking(); resolve(); };
+      signal.addEventListener('abort', onAbort, { once: true });
+
+      mediaSource.addEventListener('sourceopen', async () => {
+        let sb: SourceBuffer;
+        try {
+          sb = mediaSource.addSourceBuffer('audio/mpeg');
+        } catch {
+          stopSpeaking();
+          return resolve();
+        }
+
+        const queue: Uint8Array[] = [];
+        let streamDone = false;
+        let appending = false;
+        let started = false;
+
+        const tryAppend = () => {
+          if (signal.aborted || appending || sb.updating) return;
+          if (queue.length > 0) {
+            appending = true;
+            try {
+              sb.appendBuffer(queue.shift()!);
+            } catch {
+              appending = false;
+            }
+          } else if (streamDone && mediaSource.readyState === 'open') {
+            try { mediaSource.endOfStream(); } catch { /* ignore */ }
+          }
+        };
+
+        sb.addEventListener('updateend', () => {
+          appending = false;
+          // Kick off playback as soon as the first chunk is buffered.
+          if (!started) {
+            started = true;
+            audio.play().catch(() => { stopSpeaking(); resolve(); });
+          }
+          tryAppend();
+        });
+
+        try {
+          const reader = res.body!.getReader();
+          while (!signal.aborted) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value?.byteLength) {
+              queue.push(value);
+              tryAppend();
+            }
+          }
+          streamDone = true;
+          tryAppend();
+        } catch {
+          // Aborted or errored — onerror/onAbort will clean up.
+        }
+      });
+    });
+
+  // Fallback path for browsers without MSE support: wait for the full Blob.
+  const playBuffered = async (res: Response) => {
+    const blob = await res.blob();
+    if (blob.size === 0) return;
+    const url = URL.createObjectURL(blob);
+    ttsUrlRef.current = url;
+    const audio = new Audio(url);
+    ttsAudioRef.current = audio;
+    audio.onplay = () => setSpeaking(true);
+    audio.onended = () => stopSpeaking();
+    audio.onerror = () => stopSpeaking();
+    try {
+      await audio.play();
+    } catch {
+      stopSpeaking();
+    }
+  };
+
   const speak = async (text: string) => {
     if (!text) return;
     stopSpeaking();
+    const controller = new AbortController();
+    speakAbortRef.current = controller;
     try {
       const res = await fetch('/api/speak', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, voice: selectedVoice }),
+        signal: controller.signal,
       });
-      if (!res.ok) return;
-      const blob = await res.blob();
-      if (blob.size === 0) return;
-      const url = URL.createObjectURL(blob);
-      ttsUrlRef.current = url;
-      const audio = new Audio(url);
-      ttsAudioRef.current = audio;
-      audio.onplay = () => setSpeaking(true);
-      audio.onended = () => stopSpeaking();
-      audio.onerror = () => stopSpeaking();
-      try {
-        await audio.play();
-      } catch {
-        // Autoplay blocked — silent fail. The reply is still on screen.
-        stopSpeaking();
+      if (!res.ok || !res.body) return;
+      const canStream =
+        typeof window !== 'undefined' &&
+        'MediaSource' in window &&
+        typeof MediaSource.isTypeSupported === 'function' &&
+        MediaSource.isTypeSupported('audio/mpeg');
+      if (canStream) {
+        await playStreamingMSE(res, controller.signal);
+      } else {
+        await playBuffered(res);
       }
     } catch {
-      // Network or API failure — silent. User can read the reply.
+      // Aborted (user tapped Stop voice) or network failure — silent fail.
     }
   };
 
@@ -316,6 +426,55 @@ export default function ChatPage() {
       >
         Tap the mic, speak naturally, then tap stop. The AI will confirm before saving any changes.
       </p>
+
+      <div
+        role="group"
+        aria-label="AI voice"
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 4,
+          marginBottom: 8,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 11,
+            color: COLORS.textMuted,
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+            marginRight: 4,
+          }}
+        >
+          Voice
+        </span>
+        {VOICES.map((v) => {
+          const active = v === selectedVoice;
+          return (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setSelectedVoice(v)}
+              aria-pressed={active}
+              style={{
+                padding: '5px 11px',
+                fontSize: 12,
+                fontWeight: active ? 700 : 500,
+                background: active ? COLORS.redSoftBg : 'transparent',
+                color: active ? COLORS.red : COLORS.textBody,
+                border: `1px solid ${active ? COLORS.red : COLORS.borderStrong}`,
+                borderRadius: 999,
+                cursor: 'pointer',
+                lineHeight: 1.2,
+              }}
+            >
+              {v}
+            </button>
+          );
+        })}
+      </div>
 
       <div
         style={{
