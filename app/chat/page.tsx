@@ -9,35 +9,27 @@ type ContentBlock =
   | { type: 'tool_result'; tool_use_id: string; content: string };
 type ApiMsg = { role: 'user' | 'assistant'; content: string | ContentBlock[] };
 
-type SpeechRecogResultEvent = {
-  resultIndex?: number;
-  results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal?: boolean }>;
-};
-type SpeechRecognitionLike = {
-  lang: string;
-  interimResults: boolean;
-  continuous: boolean;
-  onresult: (e: SpeechRecogResultEvent) => void;
-  onend: () => void;
-  onerror: (e: { error: string }) => void;
-  start: () => void;
-  stop: () => void;
-};
+// Pick a MIME type that the browser can record AND that Whisper accepts.
+// Android Chrome → webm/opus. iOS Safari → mp4. Whisper handles both.
+function pickMimeType(): string {
+  if (typeof MediaRecorder === 'undefined') return '';
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/ogg;codecs=opus',
+  ];
+  for (const m of candidates) {
+    if (MediaRecorder.isTypeSupported(m)) return m;
+  }
+  return '';
+}
 
-// Build the displayed/dispatched transcript from the three storage layers.
-function combineTranscript(
-  committed: string,
-  finals: Map<number, string>,
-  interim: string,
-): string {
-  const finalsText = Array.from(finals.entries())
-    .sort((a, b) => a[0] - b[0])
-    .map(([, t]) => t.trim())
-    .filter(Boolean)
-    .join(' ');
-  return (committed + ' ' + finalsText + ' ' + interim)
-    .replace(/\s+/g, ' ')
-    .trim();
+function fileExtFor(mime: string): string {
+  if (mime.includes('webm')) return 'webm';
+  if (mime.includes('mp4')) return 'mp4';
+  if (mime.includes('ogg')) return 'ogg';
+  return 'webm';
 }
 
 export default function ChatPage() {
@@ -47,204 +39,188 @@ export default function ChatPage() {
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [speaking, setSpeaking] = useState(false);
-  const [supportsSTT, setSupportsSTT] = useState(true);
-  const [listening, setListening] = useState(false);
-  const [liveTranscript, setLiveTranscript] = useState('');
+  const [supportsRecording, setSupportsRecording] = useState(true);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const sendRef = useRef<(text: string) => Promise<void>>(async () => {});
 
-  const recogRef = useRef<SpeechRecognitionLike | null>(null);
-  const wantListeningRef = useRef(false);
-  const sentRef = useRef(false);
-  const committedTextRef = useRef('');
-  const currentFinalsRef = useRef<Map<number, string>>(new Map());
-  const lastIndexRef = useRef(-1);
-  const currentInterimRef = useRef('');
-  const restartTimerRef = useRef<number | null>(null);
+  // Recording (STT input)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  // TTS playback
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     sendRef.current = send;
   });
 
   useEffect(() => {
-    const w = window as unknown as {
-      SpeechRecognition?: new () => SpeechRecognitionLike;
-      webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-    };
-    const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
-    if (!Ctor) {
-      setSupportsSTT(false);
-      return;
+    if (typeof window === 'undefined') return;
+    if (typeof MediaRecorder === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setSupportsRecording(false);
     }
-    const r = new Ctor();
-    r.lang = 'en-US';
-    r.continuous = false;
-    r.interimResults = true;
-
-    const rotateSubSession = () => {
-      const subFinals = Array.from(currentFinalsRef.current.entries())
-        .sort((a, b) => a[0] - b[0])
-        .map(([, t]) => t.trim())
-        .filter(Boolean)
-        .join(' ');
-      if (subFinals) {
-        committedTextRef.current = (committedTextRef.current + ' ' + subFinals)
-          .replace(/\s+/g, ' ')
-          .trim();
-      }
-      currentFinalsRef.current = new Map();
-      currentInterimRef.current = '';
-      lastIndexRef.current = -1;
-    };
-
-    r.onresult = (e) => {
-      if (sentRef.current) return;
-      let interimAccum = '';
-      for (let i = 0; i < e.results.length; i++) {
-        const res = e.results[i];
-        const t = res[0]?.transcript ?? '';
-        if (!t) continue;
-        if (res.isFinal) {
-          if (i > lastIndexRef.current) {
-            currentFinalsRef.current.set(i, t);
-            lastIndexRef.current = i;
-          }
-        } else {
-          interimAccum += t;
-        }
-      }
-      currentInterimRef.current = interimAccum.trim();
-      setLiveTranscript(
-        combineTranscript(
-          committedTextRef.current,
-          currentFinalsRef.current,
-          currentInterimRef.current,
-        ),
-      );
-    };
-
-    r.onend = () => {
-      rotateSubSession();
-      if (wantListeningRef.current && !sentRef.current) {
-        if (restartTimerRef.current != null) {
-          window.clearTimeout(restartTimerRef.current);
-        }
-        restartTimerRef.current = window.setTimeout(() => {
-          restartTimerRef.current = null;
-          if (!wantListeningRef.current || sentRef.current) return;
-          try {
-            r.start();
-          } catch {
-            restartTimerRef.current = window.setTimeout(() => {
-              restartTimerRef.current = null;
-              if (!wantListeningRef.current || sentRef.current) return;
-              try {
-                r.start();
-              } catch (err2) {
-                setError(err2 instanceof Error ? err2.message : String(err2));
-                wantListeningRef.current = false;
-                setListening(false);
-              }
-            }, 250);
-          }
-        }, 60);
-      } else {
-        setListening(false);
-      }
-    };
-
-    r.onerror = (e) => {
-      if (e.error !== 'no-speech' && e.error !== 'aborted') {
-        setError(`mic: ${e.error}`);
-      }
-    };
-
-    recogRef.current = r;
   }, []);
 
-  const startListening = () => {
-    const r = recogRef.current;
-    if (!r) return;
-    committedTextRef.current = '';
-    currentFinalsRef.current = new Map();
-    currentInterimRef.current = '';
-    lastIndexRef.current = -1;
-    wantListeningRef.current = true;
-    sentRef.current = false;
-    if (restartTimerRef.current != null) {
-      window.clearTimeout(restartTimerRef.current);
-      restartTimerRef.current = null;
+  // Cleanup on unmount — stop any in-flight stream/recorder/audio.
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        for (const t of streamRef.current.getTracks()) {
+          try { t.stop(); } catch { /* ignore */ }
+        }
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try { mediaRecorderRef.current.stop(); } catch { /* ignore */ }
+      }
+      if (ttsAudioRef.current) {
+        try { ttsAudioRef.current.pause(); } catch { /* ignore */ }
+      }
+      if (ttsUrlRef.current) {
+        try { URL.revokeObjectURL(ttsUrlRef.current); } catch { /* ignore */ }
+      }
+    };
+  }, []);
+
+  // -------- TTS (OpenAI) --------
+  const stopSpeaking = () => {
+    if (ttsAudioRef.current) {
+      try { ttsAudioRef.current.pause(); } catch { /* ignore */ }
+      ttsAudioRef.current = null;
     }
-    setLiveTranscript('');
-    setError(null);
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      setSpeaking(false);
+    if (ttsUrlRef.current) {
+      try { URL.revokeObjectURL(ttsUrlRef.current); } catch { /* ignore */ }
+      ttsUrlRef.current = null;
     }
+    setSpeaking(false);
+  };
+
+  const speak = async (text: string) => {
+    if (!text) return;
+    stopSpeaking();
     try {
-      r.start();
-      setListening(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      wantListeningRef.current = false;
+      const res = await fetch('/api/speak', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      if (blob.size === 0) return;
+      const url = URL.createObjectURL(blob);
+      ttsUrlRef.current = url;
+      const audio = new Audio(url);
+      ttsAudioRef.current = audio;
+      audio.onplay = () => setSpeaking(true);
+      audio.onended = () => stopSpeaking();
+      audio.onerror = () => stopSpeaking();
+      try {
+        await audio.play();
+      } catch {
+        // Autoplay blocked — silent fail. The reply is still on screen.
+        stopSpeaking();
+      }
+    } catch {
+      // Network or API failure — silent. User can read the reply.
     }
   };
 
-  const stopListening = () => {
-    const r = recogRef.current;
-    if (sentRef.current) {
-      wantListeningRef.current = false;
-      try { r?.stop(); } catch { /* ignore */ }
-      return;
+  // -------- STT (MediaRecorder + Whisper) --------
+  const startRecording = async () => {
+    if (recording || transcribing) return;
+    setError(null);
+    stopSpeaking();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      audioChunksRef.current = [];
+      const mimeType = pickMimeType();
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        // Release the mic immediately so the OS indicator clears.
+        const tracks = streamRef.current?.getTracks() ?? [];
+        for (const t of tracks) {
+          try { t.stop(); } catch { /* ignore */ }
+        }
+        streamRef.current = null;
+
+        const chunks = audioChunksRef.current;
+        audioChunksRef.current = [];
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+        if (blob.size === 0) {
+          setTranscribing(false);
+          setError('No audio captured. Try again.');
+          return;
+        }
+        void transcribeAndSend(blob);
+      };
+
+      recorder.start();
+      setRecording(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'mic access denied');
+      setRecording(false);
     }
-    wantListeningRef.current = false;
-    sentRef.current = true;
-    if (restartTimerRef.current != null) {
-      window.clearTimeout(restartTimerRef.current);
-      restartTimerRef.current = null;
+  };
+
+  const stopRecording = () => {
+    if (!recording) return;
+    // Flip flags synchronously so the UI swaps to "Transcribing…" immediately;
+    // MediaRecorder.onstop fires async and triggers the upload.
+    setRecording(false);
+    setTranscribing(true);
+    try {
+      mediaRecorderRef.current?.stop();
+    } catch {
+      setTranscribing(false);
     }
-    const text = combineTranscript(
-      committedTextRef.current,
-      currentFinalsRef.current,
-      currentInterimRef.current,
-    );
-    committedTextRef.current = '';
-    currentFinalsRef.current = new Map();
-    currentInterimRef.current = '';
-    lastIndexRef.current = -1;
-    setLiveTranscript('');
-    setListening(false);
-    try { r?.stop(); } catch { /* already stopped */ }
-    if (text) void sendRef.current(text);
+  };
+
+  const transcribeAndSend = async (blob: Blob) => {
+    try {
+      const ext = fileExtFor(blob.type);
+      const fd = new FormData();
+      fd.append('file', blob, `audio.${ext}`);
+      const res = await fetch('/api/transcribe', { method: 'POST', body: fd });
+      const data = await res.json().catch(() => ({}));
+      setTranscribing(false);
+      if (!res.ok) {
+        setError(data.error || `transcribe ${res.status}`);
+        return;
+      }
+      const text = (data.text || '').trim();
+      if (!text) {
+        setError('No speech detected. Try again.');
+        return;
+      }
+      await sendRef.current(text);
+    } catch (e) {
+      setTranscribing(false);
+      setError(e instanceof Error ? e.message : String(e));
+    }
   };
 
   const toggleMic = () => {
-    if (listening) stopListening();
-    else startListening();
+    if (recording) stopRecording();
+    else if (!transcribing && !sending) void startRecording();
   };
 
+  // -------- Chat --------
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [uiMessages, sending, liveTranscript]);
-
-  const speak = (text: string) => {
-    if (!text || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    setSpeaking(false);
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'en-US';
-    u.onstart = () => setSpeaking(true);
-    u.onend = () => setSpeaking(false);
-    u.onerror = () => setSpeaking(false);
-    window.speechSynthesis.speak(u);
-  };
-
-  const stopSpeaking = () => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    setSpeaking(false);
-  };
+  }, [uiMessages, sending, transcribing]);
 
   const send = async (text: string) => {
     if (!text.trim() || sending) return;
@@ -266,13 +242,17 @@ export default function ChatPage() {
       const reply: string = data.reply || '';
       setApiMessages(data.messages as ApiMsg[]);
       setUiMessages([...nextUi, { role: 'assistant' as const, text: reply }]);
-      speak(reply);
+      void speak(reply);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSending(false);
     }
   };
+
+  const micDisabled = !supportsRecording || transcribing || sending;
+  const micBg = recording ? COLORS.redDeep : COLORS.red;
+  const micGlow = recording ? '0 0 0 6px rgba(200,16,46,0.25)' : 'none';
 
   return (
     <main
@@ -347,7 +327,7 @@ export default function ChatPage() {
           marginBottom: 6,
         }}
       >
-        {listening && (
+        {recording && (
           <div
             role="status"
             aria-live="polite"
@@ -374,7 +354,37 @@ export default function ChatPage() {
                 animation: 'bs-pulse 1.1s ease-in-out infinite',
               }}
             />
-            Listening — tap stop when finished
+            Recording — tap stop when finished
+          </div>
+        )}
+        {transcribing && (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '4px 10px',
+              background: COLORS.surface,
+              border: `1px solid ${COLORS.borderStrong}`,
+              color: COLORS.textBody,
+              borderRadius: 999,
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            <span
+              style={{
+                display: 'inline-block',
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                background: COLORS.textMuted,
+                animation: 'bs-pulse 1.1s ease-in-out infinite',
+              }}
+            />
+            Transcribing your message…
           </div>
         )}
         {speaking && (
@@ -453,37 +463,6 @@ export default function ChatPage() {
             </div>
           </div>
         ))}
-        {listening && liveTranscript && (
-          <div
-            aria-live="polite"
-            aria-atomic="true"
-            style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              marginBottom: 8,
-            }}
-          >
-            <div
-              style={{
-                maxWidth: '80%',
-                padding: '8px 12px',
-                borderRadius: 14,
-                background: COLORS.surface,
-                color: COLORS.textMuted,
-                border: `2px dashed ${COLORS.red}`,
-                fontSize: 15,
-                fontStyle: 'italic',
-                whiteSpace: 'pre-wrap',
-                overflowWrap: 'anywhere',
-                wordBreak: 'break-word',
-                lineHeight: 1.35,
-              }}
-            >
-              {liveTranscript}
-              <span style={{ color: COLORS.red, marginLeft: 4 }}>▍</span>
-            </div>
-          </div>
-        )}
         {sending && (
           <div style={{ color: COLORS.textMuted, fontSize: 13, fontStyle: 'italic' }}>
             thinking…
@@ -499,24 +478,24 @@ export default function ChatPage() {
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <button
           onClick={toggleMic}
-          disabled={!supportsSTT || sending}
-          aria-label={listening ? 'stop listening' : 'start listening'}
-          aria-pressed={listening}
+          disabled={micDisabled}
+          aria-label={recording ? 'stop recording' : 'start recording'}
+          aria-pressed={recording}
           style={{
             width: 64,
             height: 64,
             borderRadius: '50%',
             border: 'none',
-            background: listening ? COLORS.redDeep : COLORS.red,
+            background: micBg,
             color: '#fff',
             fontSize: 28,
-            cursor: supportsSTT ? 'pointer' : 'not-allowed',
-            opacity: supportsSTT ? 1 : 0.4,
+            cursor: micDisabled ? 'not-allowed' : 'pointer',
+            opacity: micDisabled ? 0.5 : 1,
             flexShrink: 0,
-            boxShadow: listening ? '0 0 0 6px rgba(200,16,46,0.25)' : 'none',
+            boxShadow: micGlow,
           }}
         >
-          {listening ? '■' : '🎤'}
+          {recording ? '■' : '🎤'}
         </button>
         <input
           value={draft}
@@ -524,7 +503,7 @@ export default function ChatPage() {
           onKeyDown={(e) => {
             if (e.key === 'Enter') void send(draft);
           }}
-          placeholder={supportsSTT ? 'or type here…' : 'mic not supported — type here'}
+          placeholder={supportsRecording ? 'or type here…' : 'mic not supported — type here'}
           style={{
             flex: 1,
             minWidth: 0,
@@ -548,7 +527,7 @@ export default function ChatPage() {
             color: '#fff',
             border: 'none',
             borderRadius: 8,
-            cursor: 'pointer',
+            cursor: sending || !draft.trim() ? 'not-allowed' : 'pointer',
             fontWeight: 700,
             opacity: sending || !draft.trim() ? 0.5 : 1,
           }}
@@ -556,9 +535,9 @@ export default function ChatPage() {
           Send
         </button>
       </div>
-      {!supportsSTT && (
+      {!supportsRecording && (
         <p style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 8 }}>
-          Voice input not supported in this browser. Try Chrome on Android or Safari on iOS.
+          Voice input not supported in this browser. Type your message instead.
         </p>
       )}
     </main>
