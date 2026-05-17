@@ -11,6 +11,7 @@ type ApiMsg = { role: 'user' | 'assistant'; content: string | ContentBlock[] };
 type MicMode = 'ptt' | 'hands-free' | 'always-on';
 
 const ORANGE = '#E0500F';
+const SILENCE_GRACE_MS = 2500;
 
 export default function ChatPage() {
   const [uiMessages, setUiMessages] = useState<UiMsg[]>([]);
@@ -21,12 +22,18 @@ export default function ChatPage() {
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [micMode, setMicMode] = useState<MicMode>('ptt');
+  const [speaking, setSpeaking] = useState(false);
 
   const recogRef = useRef<unknown>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const micModeRef = useRef<MicMode>('ptt');
   const desiredListeningRef = useRef(false);
   const sendingRef = useRef(false);
+  const silenceTimerRef = useRef<number | null>(null);
+  const transcriptBufferRef = useRef<string>('');
+  const interimBufferRef = useRef<string>('');
+  const sendRef = useRef<(text: string) => Promise<void>>(async () => {});
+  const finalizeRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     micModeRef.current = micMode;
@@ -35,6 +42,10 @@ export default function ChatPage() {
   useEffect(() => {
     sendingRef.current = sending;
   }, [sending]);
+
+  useEffect(() => {
+    sendRef.current = send;
+  });
 
   useEffect(() => {
     const w = window as unknown as {
@@ -60,20 +71,51 @@ export default function ChatPage() {
       stop: () => void;
     };
     r.lang = 'en-US';
-    r.interimResults = false;
-    r.continuous = false;
+    r.interimResults = true;
+    r.continuous = true;
+
+    const finalizeAndSend = () => {
+      if (silenceTimerRef.current != null) {
+        window.clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      const text = (transcriptBufferRef.current + ' ' + interimBufferRef.current).trim();
+      if (!text) {
+        if (micModeRef.current === 'ptt') stopListening();
+        return;
+      }
+      if (sendingRef.current) {
+        silenceTimerRef.current = window.setTimeout(finalizeAndSend, 500);
+        return;
+      }
+      transcriptBufferRef.current = '';
+      interimBufferRef.current = '';
+      if (micModeRef.current === 'ptt') stopListening();
+      void sendRef.current(text);
+    };
+    finalizeRef.current = finalizeAndSend;
+
+    const resetSilenceTimer = () => {
+      if (silenceTimerRef.current != null) window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = window.setTimeout(finalizeAndSend, SILENCE_GRACE_MS);
+    };
+
     r.onresult = (e) => {
       const idx = e.resultIndex ?? 0;
-      let transcript = '';
+      let newInterim = '';
       for (let i = idx; i < e.results.length; i++) {
         const res = e.results[i];
-        if (res.isFinal === false) continue;
-        transcript += res[0].transcript;
+        if (res.isFinal) {
+          const chunk = res[0].transcript.trim();
+          if (chunk) {
+            transcriptBufferRef.current = (transcriptBufferRef.current + ' ' + chunk).trim();
+          }
+        } else {
+          newInterim += res[0].transcript;
+        }
       }
-      transcript = transcript.trim();
-      if (!transcript) return;
-      if (sendingRef.current) return;
-      void send(transcript);
+      interimBufferRef.current = newInterim.trim();
+      resetSilenceTimer();
     };
     r.onend = () => {
       setListening(false);
@@ -106,9 +148,19 @@ export default function ChatPage() {
   const speak = (text: string) => {
     if (!text || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
+    setSpeaking(false);
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-US';
+    u.onstart = () => setSpeaking(true);
+    u.onend = () => setSpeaking(false);
+    u.onerror = () => setSpeaking(false);
     window.speechSynthesis.speak(u);
+  };
+
+  const stopSpeaking = () => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    setSpeaking(false);
   };
 
   const startListening = () => {
@@ -117,11 +169,20 @@ export default function ChatPage() {
       | null;
     if (!r) return;
     desiredListeningRef.current = true;
+    transcriptBufferRef.current = '';
+    interimBufferRef.current = '';
+    if (silenceTimerRef.current != null) {
+      window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
     setError(null);
     try {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
-      r.continuous = micModeRef.current !== 'ptt';
-      r.interimResults = false;
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        setSpeaking(false);
+      }
+      r.continuous = true;
+      r.interimResults = true;
       r.start();
       setListening(true);
     } catch (e) {
@@ -131,6 +192,12 @@ export default function ChatPage() {
 
   const stopListening = () => {
     desiredListeningRef.current = false;
+    if (silenceTimerRef.current != null) {
+      window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    transcriptBufferRef.current = '';
+    interimBufferRef.current = '';
     const r = recogRef.current as { stop: () => void } | null;
     if (r) {
       try {
@@ -269,36 +336,86 @@ export default function ChatPage() {
         {modeHint[micMode]}
       </p>
 
-      <div style={{ minHeight: 28, marginBottom: 6 }}>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 8,
+          minHeight: 32,
+          marginBottom: 6,
+        }}
+      >
         {listening && (
-          <div
-            role="status"
-            aria-live="polite"
+          <>
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '4px 10px',
+                background: '#fff0e6',
+                border: `1px solid ${ORANGE}`,
+                color: ORANGE,
+                borderRadius: 999,
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  background: ORANGE,
+                  animation: 'tireops-pulse 1.1s ease-in-out infinite',
+                }}
+              />
+              Listening — {modeLabel[micMode]}
+            </div>
+            <button
+              type="button"
+              onClick={() => finalizeRef.current()}
+              aria-label="Done speaking"
+              style={{
+                padding: '6px 12px',
+                fontSize: 13,
+                fontWeight: 600,
+                background: ORANGE,
+                color: '#fff',
+                border: 'none',
+                borderRadius: 999,
+                cursor: 'pointer',
+              }}
+            >
+              ✓ Done speaking
+            </button>
+          </>
+        )}
+        {speaking && (
+          <button
+            type="button"
+            onClick={stopSpeaking}
+            aria-label="Stop voice playback"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 8,
-              padding: '4px 10px',
-              background: '#fff0e6',
-              border: `1px solid ${ORANGE}`,
-              color: ORANGE,
-              borderRadius: 999,
+              gap: 6,
+              padding: '4px 12px',
               fontSize: 13,
               fontWeight: 600,
+              background: '#fff',
+              color: '#444',
+              border: '1px solid #bbb',
+              borderRadius: 999,
+              cursor: 'pointer',
             }}
           >
-            <span
-              style={{
-                display: 'inline-block',
-                width: 10,
-                height: 10,
-                borderRadius: '50%',
-                background: ORANGE,
-                animation: 'tireops-pulse 1.1s ease-in-out infinite',
-              }}
-            />
-            Listening — {modeLabel[micMode]}
-          </div>
+            🔇 Stop voice
+          </button>
         )}
       </div>
 
