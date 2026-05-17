@@ -8,77 +8,81 @@ type ContentBlock =
   | { type: 'tool_result'; tool_use_id: string; content: string };
 type ApiMsg = { role: 'user' | 'assistant'; content: string | ContentBlock[] };
 
+type SpeechRecogResultEvent = {
+  resultIndex?: number;
+  results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal?: boolean }>;
+};
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: (e: SpeechRecogResultEvent) => void;
+  onend: () => void;
+  onerror: (e: { error: string }) => void;
+  start: () => void;
+  stop: () => void;
+};
+
 const ORANGE = '#E0500F';
 
 export default function ChatPage() {
   const [uiMessages, setUiMessages] = useState<UiMsg[]>([]);
   const [apiMessages, setApiMessages] = useState<ApiMsg[]>([]);
-  const [listening, setListening] = useState(false);
   const [sending, setSending] = useState(false);
-  const [supportsSTT, setSupportsSTT] = useState(true);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [speaking, setSpeaking] = useState(false);
+  const [supportsSTT, setSupportsSTT] = useState(true);
+  const [listening, setListening] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState('');
 
-  const recogRef = useRef<unknown>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const transcriptBufferRef = useRef<string>('');
-  const interimBufferRef = useRef<string>('');
-  const sentForSessionRef = useRef(false);
   const sendRef = useRef<(text: string) => Promise<void>>(async () => {});
 
+  const recogRef = useRef<SpeechRecognitionLike | null>(null);
+  const finalBufRef = useRef('');
+  const interimBufRef = useRef('');
+  const sentRef = useRef(false);
+
+  // Keep sendRef pointed at the latest send() so handlers bound once at
+  // mount don't capture a stale uiMessages/apiMessages closure.
   useEffect(() => {
     sendRef.current = send;
   });
 
+  // -------- Speech-to-text (single tap-to-start / tap-to-stop) --------
   useEffect(() => {
     const w = window as unknown as {
-      SpeechRecognition?: new () => unknown;
-      webkitSpeechRecognition?: new () => unknown;
+      SpeechRecognition?: new () => SpeechRecognitionLike;
+      webkitSpeechRecognition?: new () => SpeechRecognitionLike;
     };
     const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!Ctor) {
       setSupportsSTT(false);
       return;
     }
-    const r = new Ctor() as {
-      lang: string;
-      interimResults: boolean;
-      continuous: boolean;
-      onresult: (e: {
-        resultIndex?: number;
-        results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal?: boolean }>;
-      }) => void;
-      onend: () => void;
-      onerror: (e: { error: string }) => void;
-      start: () => void;
-      stop: () => void;
-    };
+    const r = new Ctor();
     r.lang = 'en-US';
-    r.interimResults = true;
     r.continuous = true;
+    r.interimResults = true;
 
     r.onresult = (e) => {
-      if (sentForSessionRef.current) return;
+      if (sentRef.current) return;
       const start = e.resultIndex ?? 0;
-      let newFinalText = '';
-      let interimText = '';
+      let newFinal = '';
+      let interim = '';
       for (let i = start; i < e.results.length; i++) {
         const res = e.results[i];
         const t = res[0]?.transcript ?? '';
-        if (res.isFinal) newFinalText += t;
-        else interimText += t;
+        if (res.isFinal) newFinal += t;
+        else interim += t;
       }
-      if (newFinalText) {
-        transcriptBufferRef.current = (transcriptBufferRef.current + ' ' + newFinalText)
-          .replace(/\s+/g, ' ');
+      if (newFinal) {
+        finalBufRef.current = (finalBufRef.current + ' ' + newFinal).replace(/\s+/g, ' ');
       }
-      interimBufferRef.current = interimText;
+      interimBufRef.current = interim;
       setLiveTranscript(
-        (transcriptBufferRef.current + ' ' + interimBufferRef.current)
-          .replace(/\s+/g, ' ')
-          .trim(),
+        (finalBufRef.current + ' ' + interimBufRef.current).replace(/\s+/g, ' ').trim(),
       );
     };
 
@@ -94,6 +98,50 @@ export default function ChatPage() {
 
     recogRef.current = r;
   }, []);
+
+  const startListening = () => {
+    const r = recogRef.current;
+    if (!r) return;
+    finalBufRef.current = '';
+    interimBufRef.current = '';
+    sentRef.current = false;
+    setLiveTranscript('');
+    setError(null);
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+    }
+    try {
+      r.start();
+      setListening(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const stopListening = () => {
+    const r = recogRef.current;
+    if (sentRef.current) {
+      try { r?.stop(); } catch { /* already stopped */ }
+      return;
+    }
+    sentRef.current = true;
+    const text = (finalBufRef.current + ' ' + interimBufRef.current)
+      .replace(/\s+/g, ' ')
+      .trim();
+    finalBufRef.current = '';
+    interimBufRef.current = '';
+    setLiveTranscript('');
+    try { r?.stop(); } catch { /* already stopped */ }
+    if (text) void sendRef.current(text);
+  };
+
+  const toggleMic = () => {
+    if (listening) stopListening();
+    else startListening();
+  };
+
+  // -------- end speech-to-text --------
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -115,66 +163,6 @@ export default function ChatPage() {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     setSpeaking(false);
-  };
-
-  const startListening = () => {
-    const r = recogRef.current as
-      | { start: () => void; continuous: boolean; interimResults: boolean }
-      | null;
-    if (!r) return;
-    transcriptBufferRef.current = '';
-    interimBufferRef.current = '';
-    sentForSessionRef.current = false;
-    setLiveTranscript('');
-    setError(null);
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      setSpeaking(false);
-    }
-    try {
-      r.continuous = true;
-      r.interimResults = true;
-      r.start();
-      setListening(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  const stopListening = () => {
-    const r = recogRef.current as { stop: () => void } | null;
-    if (sentForSessionRef.current) {
-      if (r) {
-        try {
-          r.stop();
-        } catch {
-          /* ignore */
-        }
-      }
-      return;
-    }
-    sentForSessionRef.current = true;
-    const text = (transcriptBufferRef.current + ' ' + interimBufferRef.current)
-      .replace(/\s+/g, ' ')
-      .trim();
-    transcriptBufferRef.current = '';
-    interimBufferRef.current = '';
-    setLiveTranscript('');
-    if (r) {
-      try {
-        r.stop();
-      } catch {
-        /* ignore */
-      }
-    }
-    if (text) {
-      void sendRef.current(text);
-    }
-  };
-
-  const toggleMic = () => {
-    if (listening) stopListening();
-    else startListening();
   };
 
   const send = async (text: string) => {
