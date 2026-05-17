@@ -3,7 +3,11 @@ import { useEffect, useRef, useState } from 'react';
 import { COLORS } from '../../lib/theme';
 import { useAuthInfo } from '../../lib/useCurrentShop';
 
-type UiMsg = { role: 'user' | 'assistant'; text: string };
+type UiMsg = {
+  role: 'user' | 'assistant';
+  text: string;
+  attachmentName?: string;
+};
 type ContentBlock =
   | { type: 'text'; text: string }
   | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
@@ -43,6 +47,25 @@ function fileExtFor(mime: string): string {
   return 'webm';
 }
 
+const ATTACH_ACCEPT =
+  'image/*,application/pdf,.pdf,.csv,.tsv,.xlsx,.xls,.xlsm';
+
+const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024; // 15 MB
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // strip the "data:<mime>;base64," prefix
+      const base64 = result.split(',')[1] || '';
+      resolve(base64);
+    };
+    reader.onerror = () => reject(new Error('file read failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
 type VoiceChatProps = {
   variant?: 'page' | 'embedded';
   initialCollapsed?: boolean;
@@ -54,6 +77,10 @@ export default function VoiceChat({
 }: VoiceChatProps) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const { shop: currentShop, email: currentUserEmail } = useAuthInfo();
+
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [hasFileInSession, setHasFileInSession] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [uiMessages, setUiMessages] = useState<UiMsg[]>([]);
   const [apiMessages, setApiMessages] = useState<ApiMsg[]>([]);
@@ -360,23 +387,82 @@ export default function VoiceChat({
     });
   }, [uiMessages, sending, transcribing]);
 
+  const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setError(
+        `File is too large (${Math.round(file.size / 1024 / 1024)} MB). Max is ${Math.round(
+          MAX_ATTACHMENT_BYTES / 1024 / 1024,
+        )} MB.`,
+      );
+      return;
+    }
+    setAttachedFile(file);
+    setError(null);
+  };
+
+  const clearAttachedFile = () => setAttachedFile(null);
+
   const send = async (text: string) => {
-    if (!text.trim() || sending) return;
+    const file = attachedFile;
+    if ((!text.trim() && !file) || sending) return;
+
     setSending(true);
     setError(null);
     setDraft('');
-    const nextUi = [...uiMessages, { role: 'user' as const, text }];
+
+    // If the user attached a file but typed nothing, send a default prompt
+    // that nudges Claude into "read and propose" mode (no auto-add).
+    const effectiveText =
+      text.trim() ||
+      (file
+        ? 'Read this attached file and list every tire entry you find. Do NOT add anything yet — wait for my confirmation.'
+        : '');
+
+    let attachment: { name: string; type: string; base64: string } | undefined;
+    if (file) {
+      try {
+        const base64 = await fileToBase64(file);
+        attachment = { name: file.name, type: file.type, base64 };
+      } catch {
+        setError('Failed to read the attached file.');
+        setSending(false);
+        return;
+      }
+    }
+
+    const nextUi = [
+      ...uiMessages,
+      {
+        role: 'user' as const,
+        text: effectiveText,
+        attachmentName: file?.name,
+      },
+    ];
     const nextApi = [
       ...apiMessages,
-      { role: 'user' as const, content: text },
+      { role: 'user' as const, content: effectiveText },
     ];
     setUiMessages(nextUi);
     setApiMessages(nextApi);
+    if (file) {
+      setAttachedFile(null);
+      setHasFileInSession(true);
+    }
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ messages: nextApi, currentShop, currentUserEmail }),
+        body: JSON.stringify({
+          messages: nextApi,
+          currentShop,
+          currentUserEmail,
+          hasFileInSession: hasFileInSession || !!file,
+          attachment,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -603,6 +689,18 @@ export default function VoiceChat({
                 lineHeight: 1.35,
               }}
             >
+              {m.attachmentName && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    opacity: 0.85,
+                    marginBottom: m.text ? 4 : 0,
+                    fontWeight: 600,
+                  }}
+                >
+                  📎 {m.attachmentName}
+                </div>
+              )}
               {m.text || (m.role === 'assistant' ? '…' : '')}
             </div>
           </div>
@@ -658,6 +756,67 @@ export default function VoiceChat({
         </div>
       )}
 
+      {attachedFile && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            padding: '6px 8px 6px 12px',
+            background: COLORS.surface,
+            border: `1px solid ${COLORS.red}`,
+            borderRadius: 999,
+            marginBottom: 8,
+            color: COLORS.red,
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          <span
+            style={{
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              minWidth: 0,
+              flex: '1 1 0',
+            }}
+            title={attachedFile.name}
+          >
+            📎 {attachedFile.name}
+          </span>
+          <button
+            type="button"
+            onClick={clearAttachedFile}
+            aria-label="Remove attachment"
+            disabled={sending}
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: '50%',
+              border: 'none',
+              background: COLORS.redDeep,
+              color: '#fff',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: sending ? 'not-allowed' : 'pointer',
+              lineHeight: 1,
+              flexShrink: 0,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={ATTACH_ACCEPT}
+        onChange={onPickFile}
+        style={{ display: 'none' }}
+      />
+
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <button
           onClick={toggleMic}
@@ -679,6 +838,27 @@ export default function VoiceChat({
           }}
         >
           {recording ? '■' : '🎤'}
+        </button>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={sending}
+          aria-label="Attach a file"
+          title="Attach a photo, PDF, or spreadsheet"
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            background: COLORS.surface,
+            color: COLORS.textBody,
+            border: `1px solid ${COLORS.borderStrong}`,
+            fontSize: 20,
+            cursor: sending ? 'not-allowed' : 'pointer',
+            opacity: sending ? 0.5 : 1,
+            flexShrink: 0,
+          }}
+        >
+          📎
         </button>
         <input
           value={draft}

@@ -224,7 +224,11 @@ export default function HistoryPage() {
                   whiteSpace: 'nowrap',
                 }}
               >
-                {r.source === 'voice' ? '🎤 voice' : '📝 form'}
+                {r.source === 'voice'
+                  ? '🎤 voice'
+                  : r.source === 'file'
+                    ? '📎 file'
+                    : '📝 form'}
               </span>
               <span
                 style={{

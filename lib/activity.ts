@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 export type ActivityAction = 'added' | 'edited' | 'deleted';
-export type ActivitySource = 'form' | 'voice';
+export type ActivitySource = 'form' | 'voice' | 'file';
 
 export type ActivityLogRow = {
   id: string;

@@ -1,8 +1,11 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { insertActivityLog } from '../../../lib/activity';
+import { ActivitySource, insertActivityLog } from '../../../lib/activity';
+import { parseSpreadsheet } from '../../../lib/parseSpreadsheet';
 
 export const runtime = 'nodejs';
+
+const PHOTO_BUCKET = 'tire-photos';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,7 +42,14 @@ Rules:
    c. ONLY after the user replies with a clear affirmative (yes, confirm, delete it, do it) may you call delete_tire.
    d. If the user is silent, unclear, hesitant, or says no, DO NOT call delete_tire. Ask again or abandon the deletion.
    e. Never call delete_tire in the same turn you first mention deletion — confirmation must come from the user in a separate turn.
-${shopRule}`;
+${shopRule}
+9. FILE ATTACHMENTS — ALWAYS CONFIRM BEFORE ADDING. When the user attaches a file (image, PDF, or spreadsheet), they are typically asking you to extract tire entries from it. You MUST:
+   a. Read the file carefully and extract every tire entry you can identify (brand, model, size, season, condition, tread, quantity, price).
+   b. Present a clear numbered list back to the user showing what you found. Keep it short and readable since the reply is spoken aloud.
+   c. Ask the user to confirm before saving — e.g. "I found 12 tires. Should I add them all? Say yes to confirm."
+   d. ONLY after the user replies with a clear affirmative in a SEPARATE turn may you call add_tire — once per row.
+   e. NEVER call add_tire in the same turn you announce what you found from a file. This is critical for spreadsheets that may contain many rows.
+   f. If the user uploaded an image of ONE specific tire (not a spreadsheet of many), and a system note in the message gave you a photo_url, include that photo_url in your add_tire call so the photo is saved against the new tire.`;
 }
 
 const TOOLS = [
@@ -64,7 +74,7 @@ const TOOLS = [
   {
     name: 'add_tire',
     description:
-      'Insert a new tire row. ALL fields are optional — save whatever the user gave. The tool returns the inserted row plus a list of which recommended fields were missing, so you can tell the user what to fill in later.',
+      'Insert a new tire row. ALL fields are optional — save whatever the user gave. The tool returns the inserted row plus a list of which recommended fields were missing, so you can tell the user what to fill in later. If a system note in the message gave you a photo_url for an uploaded image of one specific tire, include photo_url here to attach the photo to the new tire.',
     input_schema: {
       type: 'object',
       properties: {
@@ -78,6 +88,7 @@ const TOOLS = [
         quantity: { type: 'number' },
         price: { type: 'number' },
         notes: { type: 'string' },
+        photo_url: { type: 'string', description: 'If a photo was uploaded for this single tire (system note will tell you the URL), include it here. Skip for bulk-from-spreadsheet adds.' },
       },
     },
   },
@@ -147,24 +158,45 @@ async function runSearchTires(input: ToolInput) {
   return { count: rows.length, rows };
 }
 
-async function runAddTire(input: ToolInput, currentShop: string, userEmail: string | null) {
+async function runAddTire(
+  input: ToolInput,
+  currentShop: string,
+  userEmail: string | null,
+  source: ActivitySource,
+) {
   const row: Record<string, unknown> = {};
   for (const f of ['shop', 'brand', 'model', 'size', 'season', 'condition', 'tread_pct', 'quantity', 'price', 'notes']) {
     if (input[f] !== undefined && input[f] !== null && input[f] !== '') row[f] = input[f];
   }
-  // Safety net: if the AI didn't fill in shop (it should, per system prompt),
-  // default to the signed-in user's shop so tires never land unassigned.
   if (!row.shop && currentShop && currentShop !== UNASSIGNED_SHOP) {
     row.shop = currentShop;
   }
+  const photoUrl = typeof input.photo_url === 'string' && input.photo_url.trim()
+    ? input.photo_url.trim()
+    : null;
+
   const missing = RECOMMENDED_FIELDS.filter((f) => row[f] === undefined);
   const { data, error } = await supabase.from('tires').insert(row).select().single();
   if (error) return { error: error.message, missing };
-  await insertActivityLog({ action: 'added', tire: data, source: 'voice', userEmail });
-  return { inserted: data, missing };
+
+  // Attach the uploaded photo to the new tire if the AI passed one.
+  if (photoUrl && data?.id) {
+    try {
+      await supabase.from('tire_photos').insert({ tire_id: data.id, url: photoUrl });
+    } catch (e) {
+      console.error('tire_photos insert failed', e);
+    }
+  }
+
+  await insertActivityLog({ action: 'added', tire: data, source, userEmail });
+  return { inserted: data, missing, photo_attached: !!photoUrl };
 }
 
-async function runUpdateTire(input: ToolInput, userEmail: string | null) {
+async function runUpdateTire(
+  input: ToolInput,
+  userEmail: string | null,
+  source: ActivitySource,
+) {
   const id = input.id;
   if (typeof id !== 'string') return { error: 'id is required' };
   const patch: Record<string, unknown> = {};
@@ -174,25 +206,35 @@ async function runUpdateTire(input: ToolInput, userEmail: string | null) {
   if (Object.keys(patch).length === 0) return { error: 'no fields to update' };
   const { data, error } = await supabase.from('tires').update(patch).eq('id', id).select().single();
   if (error) return { error: error.message };
-  await insertActivityLog({ action: 'edited', tire: data, source: 'voice', userEmail });
+  await insertActivityLog({ action: 'edited', tire: data, source, userEmail });
   return { updated: data };
 }
 
-async function runDeleteTire(input: ToolInput, userEmail: string | null) {
+async function runDeleteTire(
+  input: ToolInput,
+  userEmail: string | null,
+  source: ActivitySource,
+) {
   const id = input.id;
   if (typeof id !== 'string') return { error: 'id is required' };
   const { data, error } = await supabase.from('tires').delete().eq('id', id).select().single();
   if (error) return { error: error.message };
-  await insertActivityLog({ action: 'deleted', tire: data, source: 'voice', userEmail });
+  await insertActivityLog({ action: 'deleted', tire: data, source, userEmail });
   return { deleted: data };
 }
 
-async function runTool(name: string, input: ToolInput, currentShop: string, userEmail: string | null) {
+async function runTool(
+  name: string,
+  input: ToolInput,
+  currentShop: string,
+  userEmail: string | null,
+  source: ActivitySource,
+) {
   try {
     if (name === 'search_tires') return await runSearchTires(input);
-    if (name === 'add_tire') return await runAddTire(input, currentShop, userEmail);
-    if (name === 'update_tire') return await runUpdateTire(input, userEmail);
-    if (name === 'delete_tire') return await runDeleteTire(input, userEmail);
+    if (name === 'add_tire') return await runAddTire(input, currentShop, userEmail, source);
+    if (name === 'update_tire') return await runUpdateTire(input, userEmail, source);
+    if (name === 'delete_tire') return await runDeleteTire(input, userEmail, source);
     return { error: `unknown tool: ${name}` };
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) };
@@ -202,9 +244,109 @@ async function runTool(name: string, input: ToolInput, currentShop: string, user
 type ContentBlock =
   | { type: 'text'; text: string }
   | { type: 'tool_use'; id: string; name: string; input: ToolInput }
-  | { type: 'tool_result'; tool_use_id: string; content: string };
+  | { type: 'tool_result'; tool_use_id: string; content: string }
+  | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+  | { type: 'document'; source: { type: 'base64'; media_type: string; data: string } };
 
 type Message = { role: 'user' | 'assistant'; content: string | ContentBlock[] };
+
+type AttachmentInput = { name: string; type: string; base64: string };
+
+const IMAGE_MIME_ALLOW = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+]);
+
+function randomToken(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+/**
+ * Process a single attachment into Anthropic content blocks. Images get
+ * uploaded to the tire-photos bucket (so the AI can pass photo_url back
+ * via add_tire) and emitted as both an image block + a system-note text
+ * block. PDFs become document blocks. Spreadsheets are parsed to CSV text.
+ */
+async function buildAttachmentBlocks(att: AttachmentInput): Promise<ContentBlock[]> {
+  const blocks: ContentBlock[] = [];
+  const ext = att.name.toLowerCase().split('.').pop() || '';
+  const mime = (att.type || '').toLowerCase();
+
+  // ---- Image ----
+  if (mime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+    const mediaType = IMAGE_MIME_ALLOW.has(mime)
+      ? mime
+      : ext === 'png' ? 'image/png'
+      : ext === 'gif' ? 'image/gif'
+      : ext === 'webp' ? 'image/webp'
+      : 'image/jpeg';
+
+    // Try to upload to Storage so the AI can attach the same photo to the
+    // tire it creates. Failure is non-fatal — vision still works without it.
+    let photoUrl: string | null = null;
+    try {
+      const buf = Buffer.from(att.base64, 'base64');
+      const path = `pending/${Date.now()}-${randomToken()}.${ext || 'jpg'}`;
+      const { error: upErr } = await supabase.storage
+        .from(PHOTO_BUCKET)
+        .upload(path, buf, { contentType: mediaType, upsert: false });
+      if (!upErr) {
+        const { data: pub } = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(path);
+        photoUrl = pub.publicUrl;
+      }
+    } catch (e) {
+      console.error('attachment upload to storage failed', e);
+    }
+
+    blocks.push({
+      type: 'image',
+      source: { type: 'base64', media_type: mediaType, data: att.base64 },
+    });
+    if (photoUrl) {
+      blocks.push({
+        type: 'text',
+        text: `[System note: This image was uploaded and stored at "${photoUrl}". If you add a tire FROM this image (single-tire flow, not a bulk spreadsheet), pass photo_url="${photoUrl}" to add_tire so the photo is saved as that tire's attached photo.]`,
+      });
+    }
+    return blocks;
+  }
+
+  // ---- PDF ----
+  if (mime === 'application/pdf' || ext === 'pdf') {
+    blocks.push({
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: att.base64 },
+    });
+    return blocks;
+  }
+
+  // ---- Spreadsheet (.csv, .tsv, .xlsx, .xls) ----
+  if (['csv', 'tsv', 'xlsx', 'xls', 'xlsm', 'ods'].includes(ext)) {
+    const buf = Buffer.from(att.base64, 'base64');
+    const text = parseSpreadsheet(buf, att.name);
+    if (text) {
+      blocks.push({
+        type: 'text',
+        text: `[Attached spreadsheet "${att.name}" — parsed as CSV]\n\n${text}`,
+      });
+    } else {
+      blocks.push({
+        type: 'text',
+        text: `[Attached file "${att.name}" — could not parse as spreadsheet]`,
+      });
+    }
+    return blocks;
+  }
+
+  // ---- Unknown type — pass through as a text note ----
+  blocks.push({
+    type: 'text',
+    text: `[Attached file "${att.name}" of type "${mime}" — unsupported, no content extracted]`,
+  });
+  return blocks;
+}
 
 async function callAnthropic(messages: Message[], system: string) {
   const res = await fetch(ANTHROPIC_URL, {
@@ -236,7 +378,13 @@ export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json({ error: 'ANTHROPIC_API_KEY not set on server' }, { status: 500 });
   }
-  let body: { messages?: Message[]; currentShop?: string; currentUserEmail?: string };
+  let body: {
+    messages?: Message[];
+    currentShop?: string;
+    currentUserEmail?: string;
+    hasFileInSession?: boolean;
+    attachment?: AttachmentInput;
+  };
   try {
     body = await req.json();
   } catch {
@@ -251,6 +399,24 @@ export async function POST(req: NextRequest) {
     typeof body.currentUserEmail === 'string' && body.currentUserEmail.trim()
       ? body.currentUserEmail.trim()
       : null;
+
+  // If the client sent a fresh attachment, fold its content blocks into the
+  // last user message before we hand the conversation to Anthropic.
+  if (body.attachment && body.attachment.base64 && messages.length > 0) {
+    const lastIdx = messages.length - 1;
+    const last = messages[lastIdx];
+    if (last && last.role === 'user') {
+      const fileBlocks = await buildAttachmentBlocks(body.attachment);
+      const existingBlocks: ContentBlock[] = typeof last.content === 'string'
+        ? (last.content ? [{ type: 'text', text: last.content }] : [])
+        : last.content;
+      last.content = [...existingBlocks, ...fileBlocks];
+    }
+  }
+
+  // Source for activity_log: 'file' if this conversation has ever seen
+  // an attachment (per client's session flag), else 'voice'.
+  const source: ActivitySource = body.hasFileInSession ? 'file' : 'voice';
   const system = buildSystemPrompt(currentShop);
 
   try {
@@ -271,7 +437,7 @@ export async function POST(req: NextRequest) {
 
       const toolResults: ContentBlock[] = [];
       for (const tu of toolUses) {
-        const out = await runTool(tu.name, tu.input, currentShop, userEmail);
+        const out = await runTool(tu.name, tu.input, currentShop, userEmail, source);
         toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(out) });
       }
       messages.push({ role: 'user', content: toolResults });
