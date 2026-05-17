@@ -156,7 +156,13 @@ export default function ChatPage() {
           if (queue.length > 0) {
             appending = true;
             try {
-              sb.appendBuffer(queue.shift()!);
+              // Copy into a fresh plain ArrayBuffer. The Uint8Array we get from
+              // ReadableStream is typed Uint8Array<ArrayBufferLike>, which TS
+              // 5.7+ won't accept as appendBuffer's BufferSource parameter.
+              const chunk = queue.shift()!;
+              const ab = new ArrayBuffer(chunk.byteLength);
+              new Uint8Array(ab).set(chunk);
+              sb.appendBuffer(ab);
             } catch {
               appending = false;
             }
