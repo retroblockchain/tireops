@@ -6,6 +6,7 @@ import { COLORS } from '../../lib/theme';
 import { uploadTirePhoto } from '../../lib/photos';
 import { useCurrentShop } from '../../lib/useCurrentShop';
 import { UNASSIGNED_SHOP } from '../../lib/shops';
+import { logActivity } from '../../lib/activity';
 
 type Field = {
   key: string;
@@ -88,6 +89,7 @@ export default function AddTire() {
       for (const f of pendingPhotos) {
         await uploadTirePhoto(f, inserted.id);
       }
+      await logActivity({ action: 'added', tire: inserted, source: 'form' });
       router.push('/');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

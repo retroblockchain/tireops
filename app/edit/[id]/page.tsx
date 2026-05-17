@@ -10,6 +10,7 @@ import {
   uploadTirePhoto,
 } from '../../../lib/photos';
 import { useCurrentShop } from '../../../lib/useCurrentShop';
+import { logActivity } from '../../../lib/activity';
 
 type Field = { key: string; label: string; type?: string };
 const FIELDS: Field[] = [
@@ -64,27 +65,38 @@ export default function EditTire() {
   }
 
   const save = async () => {
-    await supabase
+    const patch = {
+      shop: tire.shop,
+      brand: tire.brand,
+      model: tire.model,
+      size: tire.size,
+      season: tire.season,
+      condition: tire.condition,
+      tread_pct: tire.tread_pct,
+      quantity: tire.quantity,
+      price: tire.price,
+      notes: tire.notes,
+    };
+    const { data: updated } = await supabase
       .from('tires')
-      .update({
-        shop: tire.shop,
-        brand: tire.brand,
-        model: tire.model,
-        size: tire.size,
-        season: tire.season,
-        condition: tire.condition,
-        tread_pct: tire.tread_pct,
-        quantity: tire.quantity,
-        price: tire.price,
-        notes: tire.notes,
-      })
-      .eq('id', tireId);
+      .update(patch)
+      .eq('id', tireId)
+      .select()
+      .single();
+    await logActivity({
+      action: 'edited',
+      tire: updated ?? { ...patch, id: tireId },
+      source: 'form',
+    });
     router.push('/');
   };
 
   const remove = async () => {
     if (!confirm("Delete this tire? This can't be undone.")) return;
+    // Snapshot the tire before delete so the log keeps a readable description.
+    const snapshot = tire;
     await supabase.from('tires').delete().eq('id', tireId);
+    await logActivity({ action: 'deleted', tire: snapshot, source: 'form' });
     router.push('/');
   };
 

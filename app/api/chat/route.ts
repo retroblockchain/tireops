@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { insertActivityLog } from '../../../lib/activity';
 
 export const runtime = 'nodejs';
 
@@ -146,7 +147,7 @@ async function runSearchTires(input: ToolInput) {
   return { count: rows.length, rows };
 }
 
-async function runAddTire(input: ToolInput, currentShop: string) {
+async function runAddTire(input: ToolInput, currentShop: string, userEmail: string | null) {
   const row: Record<string, unknown> = {};
   for (const f of ['shop', 'brand', 'model', 'size', 'season', 'condition', 'tread_pct', 'quantity', 'price', 'notes']) {
     if (input[f] !== undefined && input[f] !== null && input[f] !== '') row[f] = input[f];
@@ -159,10 +160,11 @@ async function runAddTire(input: ToolInput, currentShop: string) {
   const missing = RECOMMENDED_FIELDS.filter((f) => row[f] === undefined);
   const { data, error } = await supabase.from('tires').insert(row).select().single();
   if (error) return { error: error.message, missing };
+  await insertActivityLog({ action: 'added', tire: data, source: 'voice', userEmail });
   return { inserted: data, missing };
 }
 
-async function runUpdateTire(input: ToolInput) {
+async function runUpdateTire(input: ToolInput, userEmail: string | null) {
   const id = input.id;
   if (typeof id !== 'string') return { error: 'id is required' };
   const patch: Record<string, unknown> = {};
@@ -172,23 +174,25 @@ async function runUpdateTire(input: ToolInput) {
   if (Object.keys(patch).length === 0) return { error: 'no fields to update' };
   const { data, error } = await supabase.from('tires').update(patch).eq('id', id).select().single();
   if (error) return { error: error.message };
+  await insertActivityLog({ action: 'edited', tire: data, source: 'voice', userEmail });
   return { updated: data };
 }
 
-async function runDeleteTire(input: ToolInput) {
+async function runDeleteTire(input: ToolInput, userEmail: string | null) {
   const id = input.id;
   if (typeof id !== 'string') return { error: 'id is required' };
   const { data, error } = await supabase.from('tires').delete().eq('id', id).select().single();
   if (error) return { error: error.message };
+  await insertActivityLog({ action: 'deleted', tire: data, source: 'voice', userEmail });
   return { deleted: data };
 }
 
-async function runTool(name: string, input: ToolInput, currentShop: string) {
+async function runTool(name: string, input: ToolInput, currentShop: string, userEmail: string | null) {
   try {
     if (name === 'search_tires') return await runSearchTires(input);
-    if (name === 'add_tire') return await runAddTire(input, currentShop);
-    if (name === 'update_tire') return await runUpdateTire(input);
-    if (name === 'delete_tire') return await runDeleteTire(input);
+    if (name === 'add_tire') return await runAddTire(input, currentShop, userEmail);
+    if (name === 'update_tire') return await runUpdateTire(input, userEmail);
+    if (name === 'delete_tire') return await runDeleteTire(input, userEmail);
     return { error: `unknown tool: ${name}` };
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) };
@@ -232,7 +236,7 @@ export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json({ error: 'ANTHROPIC_API_KEY not set on server' }, { status: 500 });
   }
-  let body: { messages?: Message[]; currentShop?: string };
+  let body: { messages?: Message[]; currentShop?: string; currentUserEmail?: string };
   try {
     body = await req.json();
   } catch {
@@ -243,6 +247,10 @@ export async function POST(req: NextRequest) {
     typeof body.currentShop === 'string' && body.currentShop.trim()
       ? body.currentShop.trim()
       : UNASSIGNED_SHOP;
+  const userEmail =
+    typeof body.currentUserEmail === 'string' && body.currentUserEmail.trim()
+      ? body.currentUserEmail.trim()
+      : null;
   const system = buildSystemPrompt(currentShop);
 
   try {
@@ -263,7 +271,7 @@ export async function POST(req: NextRequest) {
 
       const toolResults: ContentBlock[] = [];
       for (const tu of toolUses) {
-        const out = await runTool(tu.name, tu.input, currentShop);
+        const out = await runTool(tu.name, tu.input, currentShop, userEmail);
         toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(out) });
       }
       messages.push({ role: 'user', content: toolResults });

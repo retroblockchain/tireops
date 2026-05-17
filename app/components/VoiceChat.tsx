@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { COLORS } from '../../lib/theme';
-import { useCurrentShop } from '../../lib/useCurrentShop';
+import { useAuthInfo } from '../../lib/useCurrentShop';
 
 type UiMsg = { role: 'user' | 'assistant'; text: string };
 type ContentBlock =
@@ -53,7 +53,7 @@ export default function VoiceChat({
   initialCollapsed = false,
 }: VoiceChatProps) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
-  const currentShop = useCurrentShop();
+  const { shop: currentShop, email: currentUserEmail } = useAuthInfo();
 
   const [uiMessages, setUiMessages] = useState<UiMsg[]>([]);
   const [apiMessages, setApiMessages] = useState<ApiMsg[]>([]);
@@ -376,7 +376,7 @@ export default function VoiceChat({
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ messages: nextApi, currentShop }),
+        body: JSON.stringify({ messages: nextApi, currentShop, currentUserEmail }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);

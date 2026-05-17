@@ -113,23 +113,43 @@ export default function Home() {
 
       <VoiceChat variant="embedded" />
 
-      <a
-        href="/add"
-        style={{
-          display: 'block',
-          textAlign: 'center',
-          padding: '12px 14px',
-          background: COLORS.red,
-          color: '#fff',
-          borderRadius: 8,
-          textDecoration: 'none',
-          fontWeight: 700,
-          fontSize: 15,
-          marginBottom: 16,
-        }}
-      >
-        + Add tire
-      </a>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <a
+          href="/add"
+          style={{
+            flex: '1 1 160px',
+            textAlign: 'center',
+            padding: '12px 14px',
+            background: COLORS.red,
+            color: '#fff',
+            borderRadius: 8,
+            textDecoration: 'none',
+            fontWeight: 700,
+            fontSize: 15,
+            boxSizing: 'border-box',
+          }}
+        >
+          + Add tire
+        </a>
+        <a
+          href="/history"
+          style={{
+            flex: '1 1 160px',
+            textAlign: 'center',
+            padding: '12px 14px',
+            background: COLORS.surface,
+            color: COLORS.red,
+            border: `2px solid ${COLORS.red}`,
+            borderRadius: 8,
+            textDecoration: 'none',
+            fontWeight: 700,
+            fontSize: 15,
+            boxSizing: 'border-box',
+          }}
+        >
+          📋 History
+        </a>
+      </div>
 
       {recent.length > 0 && (
         <section style={{ marginBottom: 18 }}>

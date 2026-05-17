@@ -3,22 +3,28 @@ import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
 import { UNASSIGNED_SHOP, getShopForEmail } from './shops';
 
+export type AuthInfo = { email: string | null; shop: string };
+
+const INITIAL: AuthInfo = { email: null, shop: UNASSIGNED_SHOP };
+
 /**
- * Returns the shop name for the currently signed-in user, derived from
- * the user's email via the mapping in lib/shops.ts. Starts as
- * UNASSIGNED_SHOP until Supabase resolves the session, then updates.
+ * Returns the signed-in user's email AND shop in one subscription.
+ * Email is derived directly from the Supabase session; shop is derived
+ * from email via lib/shops.ts.
  */
-export function useCurrentShop(): string {
-  const [shop, setShop] = useState<string>(UNASSIGNED_SHOP);
+export function useAuthInfo(): AuthInfo {
+  const [info, setInfo] = useState<AuthInfo>(INITIAL);
 
   useEffect(() => {
     let cancelled = false;
     supabase.auth.getUser().then(({ data }) => {
       if (cancelled) return;
-      setShop(getShopForEmail(data.user?.email));
+      const email = data.user?.email ?? null;
+      setInfo({ email, shop: getShopForEmail(email) });
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setShop(getShopForEmail(session?.user?.email));
+      const email = session?.user?.email ?? null;
+      setInfo({ email, shop: getShopForEmail(email) });
     });
     return () => {
       cancelled = true;
@@ -26,5 +32,10 @@ export function useCurrentShop(): string {
     };
   }, []);
 
-  return shop;
+  return info;
+}
+
+/** Backwards-compat thin wrapper — returns just the shop name. */
+export function useCurrentShop(): string {
+  return useAuthInfo().shop;
 }
