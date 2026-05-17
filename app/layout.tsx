@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TireOps",
+  title: "BuySell Tires Inventory",
   description: "Tire shop inventory",
 };
 

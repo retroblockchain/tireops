@@ -30,7 +30,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   if (!authed) {
     return (
       <main style={{ padding: 16, fontFamily: 'sans-serif', maxWidth: 360, margin: '40px auto' }}>
-        <h1 style={{ fontSize: 22 }}>TireOps — Sign in</h1>
+        <h1 style={{ fontSize: 22 }}>BuySell Tires Inventory — Sign in</h1>
         <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email"
           style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, border: '1px solid #ccc', marginBottom: 8 }} />
         <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password"

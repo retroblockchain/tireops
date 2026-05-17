@@ -21,7 +21,7 @@ export default function Home() {
       <button onClick={() => supabase.auth.signOut()} style={{ float: 'right', fontSize: 13, padding: '6px 10px', border: 'none', borderRadius: 6, background: '#E0500F', color: '#fff' }}>
         Sign out
       </button>
-      <h1 style={{ fontSize: 22 }}>TireOps — Inventory</h1>
+      <h1 style={{ fontSize: 22 }}>BuySell Tires Inventory</h1>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <a href="/add" style={{ padding: '8px 14px', background: '#E0500F', color: '#fff', borderRadius: 8, textDecoration: 'none' }}>+ Add tire</a>
         <a href="/chat" style={{ padding: '8px 14px', background: '#fff', color: '#E0500F', border: '1px solid #E0500F', borderRadius: 8, textDecoration: 'none' }}>🎤 Voice chat</a>
