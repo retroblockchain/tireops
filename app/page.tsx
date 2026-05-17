@@ -228,8 +228,9 @@ export default function Home() {
                   fontSize: 12,
                   padding: '3px 8px',
                   borderRadius: 99,
-                  background: t.condition === 'new' ? COLORS.black : 'transparent',
-                  color: t.condition === 'new' ? '#fff' : COLORS.textBody,
+                  fontWeight: t.condition === 'new' ? 700 : 500,
+                  background: t.condition === 'new' ? COLORS.ink : 'transparent',
+                  color: t.condition === 'new' ? COLORS.bg : COLORS.textBody,
                   border:
                     t.condition === 'new'
                       ? 'none'
