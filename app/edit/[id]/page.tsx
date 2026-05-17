@@ -26,6 +26,12 @@ export default function EditTire() {
     router.push('/');
   };
 
+  const remove = async () => {
+    if (!confirm("Delete this tire? This can't be undone.")) return;
+    await supabase.from('tires').delete().eq('id', id);
+    router.push('/');
+  };
+
   return (
     <main style={{ padding: 16, fontFamily: 'sans-serif', maxWidth: 600, margin: '0 auto' }}>
       <h1 style={{ fontSize: 20 }}>Edit tire</h1>
@@ -42,6 +48,11 @@ export default function EditTire() {
       <button onClick={save} style={{ padding: 12, fontSize: 16, width: '100%',
         background: '#E0500F', color: '#fff', border: 'none', borderRadius: 8 }}>
         Save
+      </button>
+      <button onClick={remove} style={{ padding: 12, fontSize: 16, width: '100%',
+        background: '#c0392b', color: '#fff', border: 'none', borderRadius: 8,
+        marginTop: 24 }}>
+        Delete tire
       </button>
     </main>
   );

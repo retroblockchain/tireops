@@ -24,7 +24,13 @@ Rules:
 3. When adding a tire, call add_tire with whatever fields the user gave you. Save it even if fields are missing — the tool will return which fields are missing, and you should tell the user what's missing so they can fill it in later.
 4. When updating a tire, you usually need to call search_tires first to find the id, unless the user gave it.
 5. Keep replies short and natural — they will be spoken aloud. No markdown, no lists with bullets.
-6. If a tool returns zero results, say so plainly. Do not guess.`;
+6. If a tool returns zero results, say so plainly. Do not guess.
+7. DELETION REQUIRES EXPLICIT USER CONFIRMATION. To delete a tire:
+   a. First call search_tires to locate the exact row and get its id.
+   b. Then say which tire you will delete (brand, model, size, quantity, shop) and ask the user to confirm with a clear yes — for example "Delete this one? Say yes to confirm."
+   c. ONLY after the user replies with a clear affirmative (yes, confirm, delete it, do it) may you call delete_tire.
+   d. If the user is silent, unclear, hesitant, or says no, DO NOT call delete_tire. Ask again or abandon the deletion.
+   e. Never call delete_tire in the same turn you first mention deletion — confirmation must come from the user in a separate turn.`;
 
 const TOOLS = [
   {
@@ -86,6 +92,18 @@ const TOOLS = [
       required: ['id'],
     },
   },
+  {
+    name: 'delete_tire',
+    description:
+      'Delete a tire row by id. CRITICAL: Only call this AFTER the user has clearly confirmed deletion in the conversation. You must first identify the specific tire (typically via search_tires), describe it back to the user, and wait for an explicit yes in a separate turn before invoking this tool.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'The tire id (uuid) to delete. Obtain this from search_tires.' },
+      },
+      required: ['id'],
+    },
+  },
 ];
 
 const RECOMMENDED_FIELDS = ['brand', 'model', 'size', 'season', 'condition', 'quantity', 'price'];
@@ -143,11 +161,20 @@ async function runUpdateTire(input: ToolInput) {
   return { updated: data };
 }
 
+async function runDeleteTire(input: ToolInput) {
+  const id = input.id;
+  if (typeof id !== 'string') return { error: 'id is required' };
+  const { data, error } = await supabase.from('tires').delete().eq('id', id).select().single();
+  if (error) return { error: error.message };
+  return { deleted: data };
+}
+
 async function runTool(name: string, input: ToolInput) {
   try {
     if (name === 'search_tires') return await runSearchTires(input);
     if (name === 'add_tire') return await runAddTire(input);
     if (name === 'update_tire') return await runUpdateTire(input);
+    if (name === 'delete_tire') return await runDeleteTire(input);
     return { error: `unknown tool: ${name}` };
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) };
