@@ -9,9 +9,9 @@ type ContentBlock =
   | { type: 'tool_result'; tool_use_id: string; content: string };
 type ApiMsg = { role: 'user' | 'assistant'; content: string | ContentBlock[] };
 
-const VOICES = ['alloy', 'echo', 'fable', 'onyx'] as const;
+const VOICES = ['alloy', 'echo', 'onyx', 'shimmer', 'nova'] as const;
 type Voice = (typeof VOICES)[number];
-const DEFAULT_VOICE: Voice = 'fable';
+const DEFAULT_VOICE: Voice = 'shimmer';
 
 // Pick a MIME type that the browser can record AND that Whisper accepts.
 // Android Chrome → webm/opus. iOS Safari → mp4. Whisper handles both.
