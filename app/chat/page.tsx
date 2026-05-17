@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { COLORS } from '../../lib/theme';
 
 type UiMsg = { role: 'user' | 'assistant'; text: string };
 type ContentBlock =
@@ -23,10 +24,7 @@ type SpeechRecognitionLike = {
   stop: () => void;
 };
 
-const ORANGE = '#E0500F';
-
 // Build the displayed/dispatched transcript from the three storage layers.
-// finals is keyed by resultIndex (the dedup key) so iteration is index-sorted.
 function combineTranscript(
   committed: string,
   finals: Map<number, string>,
@@ -56,20 +54,6 @@ export default function ChatPage() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const sendRef = useRef<(text: string) => Promise<void>>(async () => {});
 
-  // ---- Speech-to-text storage (mobile-reliable) ----
-  // recogRef: the single recognizer instance.
-  // wantListeningRef: user toggle. True between startListening() and stopListening().
-  //                   Drives whether onend auto-restarts.
-  // sentRef: single-dispatch guard for the OVERALL listening window. Once flipped
-  //          (in stopListening), onresult is a no-op and onend won't restart.
-  // committedTextRef: text rolled up from completed SUB-sessions in the current window.
-  // currentFinalsRef: finals from the CURRENT sub-session, keyed by resultIndex.
-  //                   Map.set() is idempotent on the same key — duplicate fires from
-  //                   mobile Chrome at the same index just overwrite, never append.
-  // lastIndexRef: highest resultIndex captured in the current sub-session. Used as a
-  //               second guard: we only accept a final if its index is greater.
-  // currentInterimRef: current sub-session in-flight interim text, replaced wholesale.
-  // restartTimerRef: pending setTimeout id for the onend auto-restart.
   const recogRef = useRef<SpeechRecognitionLike | null>(null);
   const wantListeningRef = useRef(false);
   const sentRef = useRef(false);
@@ -79,8 +63,6 @@ export default function ChatPage() {
   const currentInterimRef = useRef('');
   const restartTimerRef = useRef<number | null>(null);
 
-  // Keep sendRef pointed at the latest send() — handlers bound once at mount
-  // would otherwise capture a stale uiMessages/apiMessages closure.
   useEffect(() => {
     sendRef.current = send;
   });
@@ -97,14 +79,9 @@ export default function ChatPage() {
     }
     const r = new Ctor();
     r.lang = 'en-US';
-    // continuous=false is the mobile-Chrome-reliable mode. Android often ignores
-    // continuous=true and ends after the first utterance anyway. We synthesize
-    // continuous behavior via the onend auto-restart below.
     r.continuous = false;
     r.interimResults = true;
 
-    // Fold the current sub-session's finals into committedTextRef and reset
-    // sub-session storage. Called on every onend (before any restart).
     const rotateSubSession = () => {
       const subFinals = Array.from(currentFinalsRef.current.entries())
         .sort((a, b) => a[0] - b[0])
@@ -122,30 +99,22 @@ export default function ChatPage() {
     };
 
     r.onresult = (e) => {
-      // Hard gate: once the overall session has been committed, drop everything.
       if (sentRef.current) return;
-
       let interimAccum = '';
       for (let i = 0; i < e.results.length; i++) {
         const res = e.results[i];
         const t = res[0]?.transcript ?? '';
         if (!t) continue;
-
         if (res.isFinal) {
-          // Dedup guard: index must be strictly greater than the highest already
-          // captured in this sub-session. Map.set() is also idempotent on the
-          // same key, so a re-fire at index N (the mobile bug) is dropped here.
           if (i > lastIndexRef.current) {
             currentFinalsRef.current.set(i, t);
             lastIndexRef.current = i;
           }
         } else {
-          // Interim: each event is the full current interim view, just collect it.
           interimAccum += t;
         }
       }
       currentInterimRef.current = interimAccum.trim();
-
       setLiveTranscript(
         combineTranscript(
           committedTextRef.current,
@@ -156,14 +125,8 @@ export default function ChatPage() {
     };
 
     r.onend = () => {
-      // Always roll the sub-session into committed first — whether or not we
-      // restart, we don't want to lose what was already finalized.
       rotateSubSession();
-
       if (wantListeningRef.current && !sentRef.current) {
-        // User still has the mic toggled on — synthesize continuous behavior
-        // by restarting the recognizer. Slight delay lets the engine fully
-        // release; one retry covers the occasional InvalidStateError race.
         if (restartTimerRef.current != null) {
           window.clearTimeout(restartTimerRef.current);
         }
@@ -195,7 +158,6 @@ export default function ChatPage() {
       if (e.error !== 'no-speech' && e.error !== 'aborted') {
         setError(`mic: ${e.error}`);
       }
-      // onend fires after onerror; the restart logic there handles continuation.
     };
 
     recogRef.current = r;
@@ -204,8 +166,6 @@ export default function ChatPage() {
   const startListening = () => {
     const r = recogRef.current;
     if (!r) return;
-
-    // Full reset of every STT buffer + the dedup tracker + the guards.
     committedTextRef.current = '';
     currentFinalsRef.current = new Map();
     currentInterimRef.current = '';
@@ -216,15 +176,12 @@ export default function ChatPage() {
       window.clearTimeout(restartTimerRef.current);
       restartTimerRef.current = null;
     }
-
     setLiveTranscript('');
     setError(null);
-
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       setSpeaking(false);
     }
-
     try {
       r.start();
       setListening(true);
@@ -236,40 +193,29 @@ export default function ChatPage() {
 
   const stopListening = () => {
     const r = recogRef.current;
-
-    // Duplicate-tap defense: if we already committed this listening window,
-    // just make sure the recognizer is told to stop and bail.
     if (sentRef.current) {
       wantListeningRef.current = false;
       try { r?.stop(); } catch { /* ignore */ }
       return;
     }
-
-    // Flip both flags synchronously BEFORE anything async, so any concurrent
-    // onresult / onend is shut out and the auto-restart won't fire.
     wantListeningRef.current = false;
     sentRef.current = true;
-
     if (restartTimerRef.current != null) {
       window.clearTimeout(restartTimerRef.current);
       restartTimerRef.current = null;
     }
-
     const text = combineTranscript(
       committedTextRef.current,
       currentFinalsRef.current,
       currentInterimRef.current,
     );
-
     committedTextRef.current = '';
     currentFinalsRef.current = new Map();
     currentInterimRef.current = '';
     lastIndexRef.current = -1;
     setLiveTranscript('');
     setListening(false);
-
     try { r?.stop(); } catch { /* already stopped */ }
-
     if (text) void sendRef.current(text);
   };
 
@@ -341,21 +287,55 @@ export default function ChatPage() {
         height: '100dvh',
         boxSizing: 'border-box',
         overflowX: 'hidden',
+        color: COLORS.textBody,
+        background: COLORS.bg,
       }}
     >
       <style>{`
-        @keyframes tireops-pulse {
+        @keyframes bs-pulse {
           0% { transform: scale(0.9); opacity: 0.7; }
           50% { transform: scale(1.15); opacity: 1; }
           100% { transform: scale(0.9); opacity: 0.7; }
         }
       `}</style>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <a href="/" style={{ color: ORANGE, textDecoration: 'none', fontSize: 14 }}>&larr; Inventory</a>
-        <h1 style={{ fontSize: 20, margin: 0 }}>Voice chat</h1>
+      <header
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          marginBottom: 4,
+        }}
+      >
+        <a
+          href="/"
+          style={{
+            color: COLORS.red,
+            textDecoration: 'none',
+            fontSize: 14,
+            fontWeight: 700,
+            padding: '6px 8px',
+            borderRadius: 6,
+          }}
+        >
+          ← Inventory
+        </a>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: COLORS.ink, margin: 0 }}>
+          Voice chat
+        </h1>
         <span style={{ width: 60 }} />
-      </div>
+      </header>
+      <p
+        style={{
+          color: COLORS.textMuted,
+          fontSize: 12,
+          margin: '0 0 10px',
+          textAlign: 'center',
+        }}
+      >
+        Tap the mic, speak naturally, then tap stop. The AI will confirm before saving any changes.
+      </p>
 
       <div
         style={{
@@ -376,12 +356,12 @@ export default function ChatPage() {
               alignItems: 'center',
               gap: 8,
               padding: '4px 10px',
-              background: '#fff0e6',
-              border: `1px solid ${ORANGE}`,
-              color: ORANGE,
+              background: COLORS.redSoftBg,
+              border: `1px solid ${COLORS.red}`,
+              color: COLORS.red,
               borderRadius: 999,
               fontSize: 13,
-              fontWeight: 600,
+              fontWeight: 700,
             }}
           >
             <span
@@ -390,8 +370,8 @@ export default function ChatPage() {
                 width: 10,
                 height: 10,
                 borderRadius: '50%',
-                background: ORANGE,
-                animation: 'tireops-pulse 1.1s ease-in-out infinite',
+                background: COLORS.red,
+                animation: 'bs-pulse 1.1s ease-in-out infinite',
               }}
             />
             Listening — tap stop when finished
@@ -409,9 +389,9 @@ export default function ChatPage() {
               padding: '4px 12px',
               fontSize: 13,
               fontWeight: 600,
-              background: '#fff',
-              color: '#444',
-              border: '1px solid #bbb',
+              background: COLORS.surface,
+              color: COLORS.textBody,
+              border: `1px solid ${COLORS.borderStrong}`,
               borderRadius: 999,
               cursor: 'pointer',
             }}
@@ -426,15 +406,22 @@ export default function ChatPage() {
         style={{
           flex: 1,
           overflowY: 'auto',
-          border: '1px solid #ddd',
-          borderRadius: 8,
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: 10,
           padding: 12,
           marginBottom: 12,
-          background: '#fafafa',
+          background: COLORS.surface,
         }}
       >
         {uiMessages.length === 0 && (
-          <p style={{ color: '#888', fontSize: 14, textAlign: 'center', marginTop: 24 }}>
+          <p
+            style={{
+              color: COLORS.textMuted,
+              fontSize: 14,
+              textAlign: 'center',
+              marginTop: 24,
+            }}
+          >
             Tap the mic and ask about your tires — e.g. &ldquo;how many winter tires do we have?&rdquo;
           </p>
         )}
@@ -452,9 +439,9 @@ export default function ChatPage() {
                 maxWidth: '80%',
                 padding: '8px 12px',
                 borderRadius: 14,
-                background: m.role === 'user' ? ORANGE : '#fff',
-                color: m.role === 'user' ? '#fff' : '#222',
-                border: m.role === 'user' ? 'none' : '1px solid #ddd',
+                background: m.role === 'user' ? COLORS.red : COLORS.surface,
+                color: m.role === 'user' ? '#fff' : COLORS.ink,
+                border: m.role === 'user' ? 'none' : `1px solid ${COLORS.border}`,
                 fontSize: 15,
                 whiteSpace: 'pre-wrap',
                 overflowWrap: 'anywhere',
@@ -481,9 +468,9 @@ export default function ChatPage() {
                 maxWidth: '80%',
                 padding: '8px 12px',
                 borderRadius: 14,
-                background: '#fff',
-                color: '#666',
-                border: `2px dashed ${ORANGE}`,
+                background: COLORS.surface,
+                color: COLORS.textMuted,
+                border: `2px dashed ${COLORS.red}`,
                 fontSize: 15,
                 fontStyle: 'italic',
                 whiteSpace: 'pre-wrap',
@@ -493,15 +480,19 @@ export default function ChatPage() {
               }}
             >
               {liveTranscript}
-              <span style={{ color: ORANGE, marginLeft: 4 }}>▍</span>
+              <span style={{ color: COLORS.red, marginLeft: 4 }}>▍</span>
             </div>
           </div>
         )}
         {sending && (
-          <div style={{ color: '#888', fontSize: 13, fontStyle: 'italic' }}>thinking…</div>
+          <div style={{ color: COLORS.textMuted, fontSize: 13, fontStyle: 'italic' }}>
+            thinking…
+          </div>
         )}
         {error && (
-          <div style={{ color: '#b00', fontSize: 13, marginTop: 8 }}>error: {error}</div>
+          <div style={{ color: COLORS.redDeep, fontSize: 13, marginTop: 8 }}>
+            error: {error}
+          </div>
         )}
       </div>
 
@@ -516,13 +507,13 @@ export default function ChatPage() {
             height: 64,
             borderRadius: '50%',
             border: 'none',
-            background: listening ? '#b80' : ORANGE,
+            background: listening ? COLORS.redDeep : COLORS.red,
             color: '#fff',
             fontSize: 28,
             cursor: supportsSTT ? 'pointer' : 'not-allowed',
             opacity: supportsSTT ? 1 : 0.4,
             flexShrink: 0,
-            boxShadow: listening ? '0 0 0 6px rgba(224,80,15,0.25)' : 'none',
+            boxShadow: listening ? '0 0 0 6px rgba(200,16,46,0.25)' : 'none',
           }}
         >
           {listening ? '■' : '🎤'}
@@ -541,7 +532,9 @@ export default function ChatPage() {
             padding: 12,
             fontSize: 16,
             borderRadius: 8,
-            border: '1px solid #ccc',
+            border: `1px solid ${COLORS.borderStrong}`,
+            background: COLORS.surface,
+            color: COLORS.ink,
             boxSizing: 'border-box',
           }}
         />
@@ -551,11 +544,12 @@ export default function ChatPage() {
           style={{
             padding: '12px 14px',
             fontSize: 16,
-            background: ORANGE,
+            background: COLORS.red,
             color: '#fff',
             border: 'none',
             borderRadius: 8,
             cursor: 'pointer',
+            fontWeight: 700,
             opacity: sending || !draft.trim() ? 0.5 : 1,
           }}
         >
@@ -563,7 +557,7 @@ export default function ChatPage() {
         </button>
       </div>
       {!supportsSTT && (
-        <p style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+        <p style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 8 }}>
           Voice input not supported in this browser. Try Chrome on Android or Safari on iOS.
         </p>
       )}

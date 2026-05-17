@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { COLORS } from '../lib/theme';
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
@@ -21,23 +22,135 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async () => {
+    setErr('');
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) setErr(error.message);
   };
 
-  if (!ready) return <main style={{ padding: 16 }}>Loading...</main>;
+  if (!ready) {
+    return (
+      <main
+        style={{
+          padding: 16,
+          fontFamily: 'sans-serif',
+          color: COLORS.textMuted,
+        }}
+      >
+        Loading...
+      </main>
+    );
+  }
 
   if (!authed) {
     return (
-      <main style={{ padding: 16, fontFamily: 'sans-serif', maxWidth: 360, margin: '40px auto' }}>
-        <h1 style={{ fontSize: 22 }}>BuySell Tires Inventory — Sign in</h1>
-        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email"
-          style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, border: '1px solid #ccc', marginBottom: 8 }} />
-        <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password"
-          style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, border: '1px solid #ccc', marginBottom: 8 }} />
-        <button onClick={login} style={{ padding: 12, fontSize: 16, width: '100%',
-          background: '#E0500F', color: '#fff', border: 'none', borderRadius: 8 }}>Sign in</button>
-        {err && <p style={{ color: 'red', fontSize: 14 }}>{err}</p>}
+      <main
+        style={{
+          padding: 16,
+          fontFamily: 'sans-serif',
+          maxWidth: 380,
+          margin: '40px auto',
+          color: COLORS.textBody,
+          boxSizing: 'border-box',
+        }}
+      >
+        <h1
+          style={{
+            fontSize: 24,
+            fontWeight: 800,
+            color: COLORS.ink,
+            margin: 0,
+            letterSpacing: -0.2,
+          }}
+        >
+          BuySell Tires
+        </h1>
+        <p style={{ color: COLORS.textMuted, fontSize: 14, margin: '4px 0 24px' }}>
+          Sign in to access the inventory.
+        </p>
+
+        <label
+          htmlFor="email"
+          style={{
+            display: 'block',
+            fontSize: 13,
+            color: COLORS.textBody,
+            fontWeight: 600,
+            marginBottom: 4,
+          }}
+        >
+          Email
+        </label>
+        <input
+          id="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          autoComplete="email"
+          inputMode="email"
+          style={{
+            width: '100%',
+            padding: 12,
+            fontSize: 16,
+            borderRadius: 8,
+            border: `1px solid ${COLORS.borderStrong}`,
+            marginBottom: 12,
+            boxSizing: 'border-box',
+            background: COLORS.surface,
+            color: COLORS.ink,
+          }}
+        />
+
+        <label
+          htmlFor="password"
+          style={{
+            display: 'block',
+            fontSize: 13,
+            color: COLORS.textBody,
+            fontWeight: 600,
+            marginBottom: 4,
+          }}
+        >
+          Password
+        </label>
+        <input
+          id="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+          type="password"
+          autoComplete="current-password"
+          style={{
+            width: '100%',
+            padding: 12,
+            fontSize: 16,
+            borderRadius: 8,
+            border: `1px solid ${COLORS.borderStrong}`,
+            marginBottom: 16,
+            boxSizing: 'border-box',
+            background: COLORS.surface,
+            color: COLORS.ink,
+          }}
+        />
+
+        <button
+          onClick={login}
+          style={{
+            padding: 14,
+            fontSize: 16,
+            width: '100%',
+            background: COLORS.red,
+            color: '#fff',
+            border: 'none',
+            borderRadius: 8,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          Sign in
+        </button>
+        {err && (
+          <p style={{ color: COLORS.redDeep, fontSize: 14, marginTop: 12 }}>{err}</p>
+        )}
       </main>
     );
   }
