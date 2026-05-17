@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { COLORS } from '../../lib/theme';
+import { useCurrentShop } from '../../lib/useCurrentShop';
 
 type UiMsg = { role: 'user' | 'assistant'; text: string };
 type ContentBlock =
@@ -52,6 +53,7 @@ export default function VoiceChat({
   initialCollapsed = false,
 }: VoiceChatProps) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
+  const currentShop = useCurrentShop();
 
   const [uiMessages, setUiMessages] = useState<UiMsg[]>([]);
   const [apiMessages, setApiMessages] = useState<ApiMsg[]>([]);
@@ -374,7 +376,7 @@ export default function VoiceChat({
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ messages: nextApi }),
+        body: JSON.stringify({ messages: nextApi, currentShop }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -847,7 +849,22 @@ export default function VoiceChat({
         >
           Voice chat
         </h1>
-        <span style={{ width: 60 }} />
+        <span
+          aria-label={`Signed in as ${currentShop}`}
+          style={{
+            fontSize: 11,
+            padding: '3px 9px',
+            background: COLORS.redSoftBg,
+            color: COLORS.red,
+            border: `1px solid ${COLORS.red}`,
+            borderRadius: 999,
+            fontWeight: 700,
+            letterSpacing: 0.3,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {currentShop}
+        </span>
       </header>
       {innerContent}
     </main>

@@ -3,6 +3,7 @@ import { COLORS } from '../../lib/theme';
 
 type Tire = {
   id: string;
+  shop?: string | null;
   size?: string | null;
   brand?: string | null;
   model?: string | null;
@@ -51,41 +52,59 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
           />
         )}
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div
-                style={{
-                  fontSize: 17,
-                  fontWeight: 700,
-                  color: COLORS.ink,
-                  lineHeight: 1.2,
-                }}
-              >
-                {t.size || (
-                  <span style={{ color: COLORS.textSubtle, fontWeight: 500 }}>
-                    (no size)
-                  </span>
-                )}
-              </div>
-              <div
-                style={{ fontSize: 14, color: COLORS.textMuted, marginTop: 3 }}
-              >
-                {[t.brand, t.model].filter(Boolean).join(' ') || (
-                  <span style={{ fontStyle: 'italic' }}>unnamed</span>
-                )}
-              </div>
-            </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              marginBottom: 6,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 11,
+                padding: '2px 9px',
+                borderRadius: 99,
+                background: 'transparent',
+                color: COLORS.red,
+                border: `1px solid ${COLORS.redDeep}`,
+                fontWeight: 700,
+                letterSpacing: 0.3,
+                lineHeight: 1.4,
+              }}
+            >
+              {t.shop || 'Unassigned'}
+            </span>
             <span
               aria-hidden="true"
               style={{
                 color: COLORS.textSubtle,
                 fontSize: 22,
                 lineHeight: 1,
-                paddingTop: 2,
               }}
             >
               ›
             </span>
+          </div>
+          <div
+            style={{
+              fontSize: 17,
+              fontWeight: 700,
+              color: COLORS.ink,
+              lineHeight: 1.2,
+            }}
+          >
+            {t.size || (
+              <span style={{ color: COLORS.textSubtle, fontWeight: 500 }}>
+                (no size)
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 14, color: COLORS.textMuted, marginTop: 3 }}>
+            {[t.brand, t.model].filter(Boolean).join(' ') || (
+              <span style={{ fontStyle: 'italic' }}>unnamed</span>
+            )}
           </div>
           <div
             style={{

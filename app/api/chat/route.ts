@@ -11,7 +11,14 @@ const supabase = createClient(
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-4-6';
 
-const SYSTEM = `You are a voice assistant for a tire shop inventory app. Users speak to you about their tire stock.
+const UNASSIGNED_SHOP = 'Unassigned';
+
+function buildSystemPrompt(currentShop: string): string {
+  const knownShop = currentShop && currentShop !== UNASSIGNED_SHOP;
+  const shopRule = knownShop
+    ? `8. SHOP DEFAULT: The user is signed in at the "${currentShop}" location. When they ask you to add a tire, set the shop field to "${currentShop}" by default. Don't ask them about the shop unless they explicitly tell you a different one.`
+    : `8. SHOP DEFAULT: The user's shop is not configured. Ask the user which shop the tire belongs to when adding tires.`;
+  return `You are a voice assistant for a tire shop inventory app. Users speak to you about their tire stock.
 
 The 'tires' table has these columns:
 - id (uuid, auto), shop (text), brand (text), model (text), size (text, e.g. "225/65R17"),
@@ -30,7 +37,9 @@ Rules:
    b. Then say which tire you will delete (brand, model, size, quantity, shop) and ask the user to confirm with a clear yes — for example "Delete this one? Say yes to confirm."
    c. ONLY after the user replies with a clear affirmative (yes, confirm, delete it, do it) may you call delete_tire.
    d. If the user is silent, unclear, hesitant, or says no, DO NOT call delete_tire. Ask again or abandon the deletion.
-   e. Never call delete_tire in the same turn you first mention deletion — confirmation must come from the user in a separate turn.`;
+   e. Never call delete_tire in the same turn you first mention deletion — confirmation must come from the user in a separate turn.
+${shopRule}`;
+}
 
 const TOOLS = [
   {
@@ -137,10 +146,15 @@ async function runSearchTires(input: ToolInput) {
   return { count: rows.length, rows };
 }
 
-async function runAddTire(input: ToolInput) {
+async function runAddTire(input: ToolInput, currentShop: string) {
   const row: Record<string, unknown> = {};
   for (const f of ['shop', 'brand', 'model', 'size', 'season', 'condition', 'tread_pct', 'quantity', 'price', 'notes']) {
     if (input[f] !== undefined && input[f] !== null && input[f] !== '') row[f] = input[f];
+  }
+  // Safety net: if the AI didn't fill in shop (it should, per system prompt),
+  // default to the signed-in user's shop so tires never land unassigned.
+  if (!row.shop && currentShop && currentShop !== UNASSIGNED_SHOP) {
+    row.shop = currentShop;
   }
   const missing = RECOMMENDED_FIELDS.filter((f) => row[f] === undefined);
   const { data, error } = await supabase.from('tires').insert(row).select().single();
@@ -169,10 +183,10 @@ async function runDeleteTire(input: ToolInput) {
   return { deleted: data };
 }
 
-async function runTool(name: string, input: ToolInput) {
+async function runTool(name: string, input: ToolInput, currentShop: string) {
   try {
     if (name === 'search_tires') return await runSearchTires(input);
-    if (name === 'add_tire') return await runAddTire(input);
+    if (name === 'add_tire') return await runAddTire(input, currentShop);
     if (name === 'update_tire') return await runUpdateTire(input);
     if (name === 'delete_tire') return await runDeleteTire(input);
     return { error: `unknown tool: ${name}` };
@@ -188,7 +202,7 @@ type ContentBlock =
 
 type Message = { role: 'user' | 'assistant'; content: string | ContentBlock[] };
 
-async function callAnthropic(messages: Message[]) {
+async function callAnthropic(messages: Message[], system: string) {
   const res = await fetch(ANTHROPIC_URL, {
     method: 'POST',
     headers: {
@@ -199,7 +213,7 @@ async function callAnthropic(messages: Message[]) {
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 1024,
-      system: SYSTEM,
+      system,
       tools: TOOLS,
       messages,
     }),
@@ -218,17 +232,22 @@ export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json({ error: 'ANTHROPIC_API_KEY not set on server' }, { status: 500 });
   }
-  let body: { messages?: Message[] };
+  let body: { messages?: Message[]; currentShop?: string };
   try {
     body = await req.json();
   } catch {
     return Response.json({ error: 'invalid JSON' }, { status: 400 });
   }
   const messages: Message[] = Array.isArray(body.messages) ? body.messages : [];
+  const currentShop =
+    typeof body.currentShop === 'string' && body.currentShop.trim()
+      ? body.currentShop.trim()
+      : UNASSIGNED_SHOP;
+  const system = buildSystemPrompt(currentShop);
 
   try {
     for (let step = 0; step < 6; step++) {
-      const result = await callAnthropic(messages);
+      const result = await callAnthropic(messages, system);
       const assistantBlocks = result.content;
       messages.push({ role: 'assistant', content: assistantBlocks });
 
@@ -244,7 +263,7 @@ export async function POST(req: NextRequest) {
 
       const toolResults: ContentBlock[] = [];
       for (const tu of toolUses) {
-        const out = await runTool(tu.name, tu.input);
+        const out = await runTool(tu.name, tu.input, currentShop);
         toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(out) });
       }
       messages.push({ role: 'user', content: toolResults });

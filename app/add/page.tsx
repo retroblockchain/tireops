@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import { COLORS } from '../../lib/theme';
 import { uploadTirePhoto } from '../../lib/photos';
+import { useCurrentShop } from '../../lib/useCurrentShop';
+import { UNASSIGNED_SHOP } from '../../lib/shops';
 
 type Field = {
   key: string;
@@ -26,7 +28,9 @@ const FIELDS: Field[] = [
 
 export default function AddTire() {
   const router = useRouter();
+  const currentShop = useCurrentShop();
   const [tire, setTire] = useState<any>({});
+  const [shopPrefilled, setShopPrefilled] = useState(false);
   const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -34,6 +38,15 @@ export default function AddTire() {
 
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Pre-fill the shop field with the logged-in user's shop once it resolves,
+  // unless the user has already edited it.
+  useEffect(() => {
+    if (shopPrefilled) return;
+    if (!currentShop || currentShop === UNASSIGNED_SHOP) return;
+    setTire((prev: any) => (prev.shop ? prev : { ...prev, shop: currentShop }));
+    setShopPrefilled(true);
+  }, [currentShop, shopPrefilled]);
 
   // Rebuild preview URLs whenever the pending list changes; revoke old ones.
   useEffect(() => {
@@ -99,7 +112,8 @@ export default function AddTire() {
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 4,
+          justifyContent: 'space-between',
+          gap: 8,
           marginBottom: 12,
         }}
       >
@@ -116,6 +130,22 @@ export default function AddTire() {
         >
           ← Inventory
         </a>
+        <span
+          aria-label={`Signed in as ${currentShop}`}
+          style={{
+            fontSize: 11,
+            padding: '3px 9px',
+            background: COLORS.redSoftBg,
+            color: COLORS.red,
+            border: `1px solid ${COLORS.red}`,
+            borderRadius: 999,
+            fontWeight: 700,
+            letterSpacing: 0.3,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {currentShop}
+        </span>
       </header>
       <h1
         style={{

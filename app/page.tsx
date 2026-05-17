@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { APP_VERSION } from '../lib/version';
 import { COLORS } from '../lib/theme';
 import { loadFirstPhotosByTire } from '../lib/photos';
+import { useCurrentShop } from '../lib/useCurrentShop';
 import { TireCard } from './components/TireCard';
 import VoiceChat from './components/VoiceChat';
 
@@ -15,6 +16,7 @@ export default function Home() {
   const [photosByTire, setPhotosByTire] = useState<Map<string, string>>(
     new Map(),
   );
+  const currentShop = useCurrentShop();
 
   useEffect(() => {
     supabase
@@ -53,17 +55,36 @@ export default function Home() {
           marginBottom: 4,
         }}
       >
-        <h1
-          style={{
-            fontSize: 22,
-            fontWeight: 800,
-            color: COLORS.ink,
-            margin: 0,
-            letterSpacing: -0.2,
-          }}
-        >
-          BuySell Tires
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <h1
+            style={{
+              fontSize: 22,
+              fontWeight: 800,
+              color: COLORS.ink,
+              margin: 0,
+              letterSpacing: -0.2,
+            }}
+          >
+            BuySell Tires
+          </h1>
+          <span
+            aria-label={`Signed in as ${currentShop}`}
+            title={`Signed in as ${currentShop}`}
+            style={{
+              fontSize: 11,
+              padding: '3px 9px',
+              background: COLORS.redSoftBg,
+              color: COLORS.red,
+              border: `1px solid ${COLORS.red}`,
+              borderRadius: 999,
+              fontWeight: 700,
+              letterSpacing: 0.3,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {currentShop}
+          </span>
+        </div>
         <button
           onClick={() => supabase.auth.signOut()}
           style={{
@@ -74,6 +95,7 @@ export default function Home() {
             border: `1px solid ${COLORS.border}`,
             borderRadius: 6,
             cursor: 'pointer',
+            flexShrink: 0,
           }}
         >
           Sign out

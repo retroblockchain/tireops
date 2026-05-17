@@ -9,6 +9,7 @@ import {
   loadTirePhotos,
   uploadTirePhoto,
 } from '../../../lib/photos';
+import { useCurrentShop } from '../../../lib/useCurrentShop';
 
 type Field = { key: string; label: string; type?: string };
 const FIELDS: Field[] = [
@@ -28,6 +29,7 @@ export default function EditTire() {
   const { id } = useParams();
   const tireId = Array.isArray(id) ? id[0] : id;
   const router = useRouter();
+  const currentShop = useCurrentShop();
   const [tire, setTire] = useState<any>(null);
   const [photos, setPhotos] = useState<TirePhoto[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -126,7 +128,8 @@ export default function EditTire() {
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 4,
+          justifyContent: 'space-between',
+          gap: 8,
           marginBottom: 12,
         }}
       >
@@ -143,6 +146,22 @@ export default function EditTire() {
         >
           ← Inventory
         </a>
+        <span
+          aria-label={`Signed in as ${currentShop}`}
+          style={{
+            fontSize: 11,
+            padding: '3px 9px',
+            background: COLORS.redSoftBg,
+            color: COLORS.red,
+            border: `1px solid ${COLORS.red}`,
+            borderRadius: 999,
+            fontWeight: 700,
+            letterSpacing: 0.3,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {currentShop}
+        </span>
       </header>
       <h1
         style={{
