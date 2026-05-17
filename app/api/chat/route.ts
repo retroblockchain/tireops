@@ -250,7 +250,18 @@ type ContentBlock =
 
 type Message = { role: 'user' | 'assistant'; content: string | ContentBlock[] };
 
-type AttachmentInput = { name: string; type: string; base64: string };
+type AttachmentInput = {
+  name: string;
+  type: string;
+  base64: string;
+  /**
+   * When the client has already uploaded the image to Supabase Storage (the
+   * normal path — done via the authenticated client), it passes the public
+   * URL here. The server then skips its own upload attempt (which would fail
+   * under typical anon-blocked storage RLS) and uses this URL directly.
+   */
+  photoUrl?: string;
+};
 
 const IMAGE_MIME_ALLOW = new Set([
   'image/jpeg',
@@ -283,21 +294,33 @@ async function buildAttachmentBlocks(att: AttachmentInput): Promise<ContentBlock
       : ext === 'webp' ? 'image/webp'
       : 'image/jpeg';
 
-    // Try to upload to Storage so the AI can attach the same photo to the
-    // tire it creates. Failure is non-fatal — vision still works without it.
-    let photoUrl: string | null = null;
-    try {
-      const buf = Buffer.from(att.base64, 'base64');
-      const path = `pending/${Date.now()}-${randomToken()}.${ext || 'jpg'}`;
-      const { error: upErr } = await supabase.storage
-        .from(PHOTO_BUCKET)
-        .upload(path, buf, { contentType: mediaType, upsert: false });
-      if (!upErr) {
-        const { data: pub } = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(path);
-        photoUrl = pub.publicUrl;
+    // Prefer the URL the client already uploaded via its authenticated
+    // supabase session. Fall back to a server-side upload attempt only when
+    // the client didn't supply one (e.g. older client). Server upload uses
+    // the anon-keyed client and may fail under strict storage RLS.
+    let photoUrl: string | null =
+      typeof att.photoUrl === 'string' && att.photoUrl.trim()
+        ? att.photoUrl.trim()
+        : null;
+
+    if (!photoUrl) {
+      try {
+        const buf = Buffer.from(att.base64, 'base64');
+        const path = `pending/${Date.now()}-${randomToken()}.${ext || 'jpg'}`;
+        const { error: upErr } = await supabase.storage
+          .from(PHOTO_BUCKET)
+          .upload(path, buf, { contentType: mediaType, upsert: false });
+        if (!upErr) {
+          const { data: pub } = supabase.storage
+            .from(PHOTO_BUCKET)
+            .getPublicUrl(path);
+          photoUrl = pub.publicUrl;
+        } else {
+          console.error('server-side photo upload failed', upErr);
+        }
+      } catch (e) {
+        console.error('attachment upload to storage failed', e);
       }
-    } catch (e) {
-      console.error('attachment upload to storage failed', e);
     }
 
     blocks.push({
@@ -308,6 +331,13 @@ async function buildAttachmentBlocks(att: AttachmentInput): Promise<ContentBlock
       blocks.push({
         type: 'text',
         text: `[System note: This image was uploaded and stored at "${photoUrl}". If you add a tire FROM this image (single-tire flow, not a bulk spreadsheet), pass photo_url="${photoUrl}" to add_tire so the photo is saved as that tire's attached photo.]`,
+      });
+    } else {
+      // No URL available at all — let Claude know so it doesn't refuse to
+      // add the tire while waiting for one.
+      blocks.push({
+        type: 'text',
+        text: `[System note: An image was attached but no storage URL is available. You may still extract tire details and add the tire — just omit photo_url from add_tire. Do not refuse to add because of the missing URL.]`,
       });
     }
     return blocks;

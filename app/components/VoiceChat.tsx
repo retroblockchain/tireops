@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { COLORS } from '../../lib/theme';
 import { useAuthInfo } from '../../lib/useCurrentShop';
+import { uploadPendingPhoto } from '../../lib/photos';
 
 type UiMsg = {
   role: 'user' | 'assistant';
@@ -421,11 +422,29 @@ export default function VoiceChat({
         ? 'Read this attached file and list every tire entry you find. Do NOT add anything yet — wait for my confirmation.'
         : '');
 
-    let attachment: { name: string; type: string; base64: string } | undefined;
+    let attachment:
+      | { name: string; type: string; base64: string; photoUrl?: string }
+      | undefined;
     if (file) {
       try {
         const base64 = await fileToBase64(file);
-        attachment = { name: file.name, type: file.type, base64 };
+        let photoUrl: string | undefined;
+        // For images: upload via the authenticated client BEFORE sending so
+        // the server gets a stable public URL it can pass to Claude. Server
+        // can't reliably upload itself (its supabase client is anon-keyed
+        // and RLS on storage.objects rejects anon inserts).
+        if (file.type.startsWith('image/')) {
+          const url = await uploadPendingPhoto(file);
+          if (!url) {
+            setError(
+              'Could not upload the photo to storage. Check your connection and try again.',
+            );
+            setSending(false);
+            return;
+          }
+          photoUrl = url;
+        }
+        attachment = { name: file.name, type: file.type, base64, photoUrl };
       } catch {
         setError('Failed to read the attached file.');
         setSending(false);

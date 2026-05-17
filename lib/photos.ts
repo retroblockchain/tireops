@@ -57,6 +57,33 @@ export async function uploadTirePhoto(
 }
 
 /**
+ * Upload a photo to the tire-photos bucket WITHOUT linking it to a tire yet.
+ * Used by the chat attach flow — the AI may later attach the returned URL
+ * to a newly-created tire via add_tire's photo_url. Files land in
+ * `pending/<timestamp>-<token>.<ext>` so they're easy to spot and clean up.
+ *
+ * Runs client-side, where the supabase client has the user's session — this
+ * matches the auth-tier that the bucket's RLS allows for uploads.
+ */
+export async function uploadPendingPhoto(file: File): Promise<string | null> {
+  const ext = extFor(file);
+  const path = `pending/${Date.now()}-${randomToken()}.${ext}`;
+  const { error: uploadError } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, file, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: file.type || `image/${ext}`,
+    });
+  if (uploadError) {
+    console.error('pending photo upload failed', uploadError);
+    return null;
+  }
+  const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  return pub.publicUrl;
+}
+
+/**
  * Best-effort delete: remove from Storage AND from the tire_photos table.
  * Returns true if the DB row was removed.
  */
