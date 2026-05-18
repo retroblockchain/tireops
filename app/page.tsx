@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
 import { APP_VERSION } from '../lib/version';
 import { COLORS, RADII, SHADOWS } from '../lib/theme';
@@ -25,12 +24,10 @@ const sectionHeaderStyle: React.CSSProperties = {
 };
 
 export default function Home() {
-  const router = useRouter();
   const [tires, setTires] = useState<any[]>([]);
   const [photosByTire, setPhotosByTire] = useState<Map<string, string>>(
     new Map(),
   );
-  const [searchDraft, setSearchDraft] = useState('');
   const currentShop = useCurrentShop();
 
   useEffect(() => {
@@ -67,15 +64,6 @@ export default function Home() {
     ).length,
   }));
   const totalInStock = liveTires.length;
-
-  const goToInventory = (q?: string) => {
-    const trimmed = (q ?? '').trim();
-    if (trimmed) {
-      router.push(`/inventory?q=${encodeURIComponent(trimmed)}`);
-    } else {
-      router.push('/inventory');
-    }
-  };
 
   return (
     <main
@@ -302,17 +290,19 @@ export default function Home() {
               const brandLine =
                 [t.brand, t.model].filter(Boolean).join(' ') || '—';
               return (
-                <a
+                // Display-only — the dashboard's recently-sold glance is NOT
+                // clickable. Staff can drill into a sold tire from /sold.
+                <div
                   key={`s-${t.id}`}
-                  href={`/edit/${t.id}`}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
                     padding: '8px 12px',
-                    textDecoration: 'none',
                     color: COLORS.textMuted,
                     fontSize: 12,
+                    cursor: 'default',
+                    userSelect: 'text',
                     borderBottom:
                       i < recentSold.length - 1
                         ? `1px solid ${COLORS.border}`
@@ -357,70 +347,52 @@ export default function Home() {
                       {t.size}
                     </span>
                   )}
-                </a>
+                </div>
               );
             })}
           </div>
         )}
       </section>
 
-      {/* ----- Search: lands on /inventory mid-search ----- */}
+      {/*
+        Nav — four equal-width pills on a single row. flex:1 with min-width:0
+        + nowrap + ellipsis safety keeps them on one line on a narrow Android
+        screen (360px-ish). Emojis dropped from the secondary buttons to
+        leave room for the labels; "+" is kept on Add tire as a clear "new"
+        affordance. The home page itself no longer has a search box — full
+        inventory search lives behind the "All tires" pill.
+      */}
       <section style={{ marginBottom: 18 }}>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            goToInventory(searchDraft);
-          }}
-        >
-          <input
-            type="search"
-            inputMode="search"
-            enterKeyHint="search"
-            value={searchDraft}
-            onChange={(e) => setSearchDraft(e.target.value)}
-            placeholder="Search the full inventory…"
-            aria-label="Search the full inventory"
-            style={{
-              width: '100%',
-              padding: '12px 14px',
-              fontSize: 16,
-              borderRadius: RADII.control,
-              border: `1px solid ${COLORS.borderStrong}`,
-              boxSizing: 'border-box',
-              background: COLORS.surface,
-              color: COLORS.ink,
-              marginBottom: 10,
-            }}
-          />
-        </form>
-        {/*
-          Secondary nav — compact pills. Add tire keeps the red accent because
-          it's the most consequential action; the rest sit quietly.
-        */}
         <div
           style={{
             display: 'flex',
-            gap: 8,
-            flexWrap: 'wrap',
-            alignItems: 'center',
+            gap: 6,
+            alignItems: 'stretch',
+            width: '100%',
           }}
         >
           <a
             href="/add"
             style={{
+              flex: '1 1 0',
+              minWidth: 0,
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 5,
-              padding: '7px 14px',
+              justifyContent: 'center',
+              padding: '8px 6px',
               background: COLORS.red,
               color: '#fff',
               border: 'none',
               borderRadius: RADII.pill,
               textDecoration: 'none',
               fontWeight: 700,
-              fontSize: 13,
+              fontSize: 12,
               letterSpacing: 0.1,
               lineHeight: 1.3,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              boxSizing: 'border-box',
             }}
           >
             + Add tire
@@ -428,62 +400,80 @@ export default function Home() {
           <a
             href="/inventory"
             style={{
+              flex: '1 1 0',
+              minWidth: 0,
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 5,
-              padding: '7px 14px',
+              justifyContent: 'center',
+              padding: '8px 6px',
               background: 'transparent',
               color: COLORS.textBody,
               border: `1px solid ${COLORS.border}`,
               borderRadius: RADII.pill,
               textDecoration: 'none',
               fontWeight: 600,
-              fontSize: 13,
+              fontSize: 12,
               letterSpacing: 0.1,
               lineHeight: 1.3,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              boxSizing: 'border-box',
             }}
           >
-            📦 All tires
+            All tires
           </a>
           <a
             href="/history"
             style={{
+              flex: '1 1 0',
+              minWidth: 0,
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 5,
-              padding: '7px 14px',
+              justifyContent: 'center',
+              padding: '8px 6px',
               background: 'transparent',
               color: COLORS.textBody,
               border: `1px solid ${COLORS.border}`,
               borderRadius: RADII.pill,
               textDecoration: 'none',
               fontWeight: 600,
-              fontSize: 13,
+              fontSize: 12,
               letterSpacing: 0.1,
               lineHeight: 1.3,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              boxSizing: 'border-box',
             }}
           >
-            📋 History
+            History
           </a>
           <a
             href="/sold"
             style={{
+              flex: '1 1 0',
+              minWidth: 0,
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 5,
-              padding: '7px 14px',
+              justifyContent: 'center',
+              padding: '8px 6px',
               background: 'transparent',
               color: COLORS.textBody,
               border: `1px solid ${COLORS.border}`,
               borderRadius: RADII.pill,
               textDecoration: 'none',
               fontWeight: 600,
-              fontSize: 13,
+              fontSize: 12,
               letterSpacing: 0.1,
               lineHeight: 1.3,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              boxSizing: 'border-box',
             }}
           >
-            🚚 Sold
+            Sold
           </a>
         </div>
       </section>

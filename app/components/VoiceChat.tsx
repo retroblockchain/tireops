@@ -1606,7 +1606,12 @@ export default function VoiceChat({
               padding: '0 14px 20px',
               display: 'flex',
               flexDirection: 'column',
-              height: 360,
+              // Bumped ~1.5× from the original 360. The chat is the primary
+              // surface on the dashboard now, so the message scroll should
+              // feel like the page's main element. All the extra height
+              // flows into the chat scroll (which has flex:1, minHeight:60);
+              // the mic + Send row is flex-shrink:0 so it always stays put.
+              height: 480,
               borderTop: `1px solid ${COLORS.border}`,
               paddingTop: 12,
               background: COLORS.surface,
