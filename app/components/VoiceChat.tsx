@@ -3,13 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import { COLORS, RADII, SHADOWS } from '../../lib/theme';
 import { useAuthInfo } from '../../lib/useCurrentShop';
 import { uploadPendingPhoto } from '../../lib/photos';
-import { UNASSIGNED_SHOP } from '../../lib/shops';
-import {
-  getEmployeeName,
-  setEmployeeName as persistEmployeeName,
-  getWelcomedShop,
-  setWelcomedShop,
-} from '../../lib/employeeName';
 
 type UiMsg = {
   role: 'user' | 'assistant';
@@ -80,26 +73,6 @@ function isConfirmationRequest(text: string): boolean {
     if (/\b(should i|shall i|want me to|do you want)\b/.test(lower)) return true;
   }
   return false;
-}
-
-/**
- * Walk the chat history (newest message first) and return the most recent
- * name the AI captured via set_employee_name. Used after a /api/chat round-
- * trip to persist the name into local state + sessionStorage.
- */
-function extractEmployeeNameFromMessages(msgs: ApiMsg[]): string | null {
-  for (let i = msgs.length - 1; i >= 0; i--) {
-    const m = msgs[i];
-    if (m.role !== 'assistant' || !Array.isArray(m.content)) continue;
-    for (const b of m.content) {
-      const tb = b as { type: string; name?: string; input?: { name?: unknown } };
-      if (tb.type === 'tool_use' && tb.name === 'set_employee_name') {
-        const n = tb.input?.name;
-        if (typeof n === 'string' && n.trim()) return n.trim();
-      }
-    }
-  }
-  return null;
 }
 
 function fileToBase64(file: File): Promise<string> {
@@ -173,14 +146,6 @@ export default function VoiceChat({
   const [filePreviews, setFilePreviews] = useState<string[]>([]);
   const [hasFileInSession, setHasFileInSession] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const [employeeName, setEmployeeName] = useState<string | null>(null);
-
-  // Hydrate employee name from sessionStorage on first render.
-  useEffect(() => {
-    const n = getEmployeeName();
-    if (n) setEmployeeName(n);
-  }, []);
 
   const [uiMessages, setUiMessages] = useState<UiMsg[]>([]);
   const [apiMessages, setApiMessages] = useState<ApiMsg[]>([]);
@@ -440,34 +405,13 @@ export default function VoiceChat({
     collapsed,
   ]);
 
-  // -------- Welcome message (once per shop session) --------
-  useEffect(() => {
-    // Wait for sessionStorage rehydrate to settle, otherwise we'd prepend a
-    // welcome to a restored conversation.
-    if (!hydrated) return;
-    if (!currentShop || currentShop === UNASSIGNED_SHOP) return;
-    if (uiMessages.length > 0) return;
-    if (getWelcomedShop() === currentShop) return;
-
-    const known = getEmployeeName();
-    const greeting = known
-      ? `Welcome back, ${known}!`
-      : `Welcome to BuySell Tires ${currentShop}! Who am I speaking with?`;
-
-    setUiMessages([{ role: 'assistant', text: greeting }]);
-    setWelcomedShop(currentShop);
-    void speak(greeting);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentShop, hydrated]);
-
   // -------- "New chat" / clear --------
   // Two-step click. First call arms the button for 3 s; second call within
-  // that window actually clears state + storage + welcomes again. Never
-  // auto-fires — only the user can wipe their conversation.
+  // that window actually clears state + storage. Never auto-fires — only
+  // the user can wipe their conversation. After clearing, the empty chat
+  // shows the placeholder hint (no welcome greeting).
   const clearChat = () => {
     if (clearArmed) {
-      // Stop any in-flight TTS so the greeting we're about to speak isn't
-      // talked over by the previous reply finishing.
       stopSpeaking();
       setUiMessages([]);
       setApiMessages([]);
@@ -479,18 +423,6 @@ export default function VoiceChat({
         sessionStorage.removeItem(CHAT_STORAGE_KEY);
       } catch {
         /* storage unavailable — persist effect will rewrite anyway */
-      }
-      // Reset the per-shop welcome flag so the new chat starts with the
-      // same greeting a fresh tab would. Re-injected inline below.
-      setWelcomedShop(null);
-      if (currentShop && currentShop !== UNASSIGNED_SHOP) {
-        const known = getEmployeeName();
-        const greeting = known
-          ? `Welcome back, ${known}!`
-          : `Welcome to BuySell Tires ${currentShop}! Who am I speaking with?`;
-        setUiMessages([{ role: 'assistant', text: greeting }]);
-        setWelcomedShop(currentShop);
-        void speak(greeting);
       }
       setClearArmed(false);
       if (clearArmTimerRef.current) {
@@ -768,7 +700,6 @@ export default function VoiceChat({
           messages: nextApi,
           currentShop,
           currentUserEmail,
-          employeeName,
           hasFileInSession: hasFileInSession || files.length > 0,
           // Always send the array. The server also accepts the legacy
           // singular `attachment` field for older clients.
@@ -838,13 +769,6 @@ export default function VoiceChat({
 
       if (finalMessages) {
         setApiMessages(finalMessages);
-      }
-
-      // Capture employee name from the just-completed turn.
-      const newName = extractEmployeeNameFromMessages(finalMessages || []);
-      if (newName && newName !== employeeName) {
-        setEmployeeName(newName);
-        persistEmployeeName(newName);
       }
 
       // Fire TTS the instant streaming ends. (Streaming the audio itself
@@ -1114,17 +1038,28 @@ export default function VoiceChat({
         }}
       >
         {uiMessages.length === 0 && (
-          <p
+          <div
             style={{
               color: COLORS.textMuted,
               fontSize: 14,
               textAlign: 'center',
-              marginTop: 24,
+              padding: '20px 12px',
+              lineHeight: 1.5,
             }}
           >
-            Tap the mic and ask about your tires — e.g. &ldquo;how many winter
-            tires do we have?&rdquo;
-          </p>
+            <p style={{ margin: 0, color: COLORS.textBody, fontWeight: 600 }}>
+              Ask me anything about your inventory.
+            </p>
+            <p
+              style={{
+                margin: '6px 0 0',
+                fontSize: 13,
+                color: COLORS.textMuted,
+              }}
+            >
+              Add tires, search, update stock, mark as sold…
+            </p>
+          </div>
         )}
         {uiMessages.map((m, i) => (
           <div

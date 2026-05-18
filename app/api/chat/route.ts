@@ -84,12 +84,6 @@ ${shopRule}
    e. NEVER call add_tire in the same turn you announce what you found from a file. This is critical for spreadsheets that may contain many rows.
    f. If the user uploaded one or more images of ONE specific tire (not a spreadsheet of many entries), the system notes give you each image's URL. When calling add_tire: use photo_url="<url>" if a single image was attached, or photo_urls=["<url1>","<url2>",...] if MULTIPLE images of the same tire were attached. All listed photos are saved against the new tire.
 10. BUG REPORTS: If the user reports a problem with the app or asks you to log/file a bug (e.g. "report a bug: the photo upload failed", "log an issue", "this is broken — track it"), call the report_bug tool with a concise description that captures the issue. Confirm to the user that the bug was logged. Ask for clarification only if their description is too vague to be useful — short reports are fine.
-11. EMPLOYEE INTRODUCTION: At the start of the conversation the user has already seen a greeting from you saying "Welcome to BuySell Tires ${currentShop}! Who am I speaking with?" (or "Welcome back, [name]!" if they've used the app this session). Their FIRST message will usually be their name (e.g. "I'm Dave", "this is Sarah", or just "Dave").
-   a. When they introduce themselves, IMMEDIATELY call set_employee_name with their first name.
-   b. Then briefly acknowledge them by name and ask how you can help — keep it to one short sentence.
-   c. Do NOT repeat the welcome greeting yourself.
-   d. After that, occasionally use their name when it feels natural, but don't overdo it.
-   e. If their first message is a regular question instead of an introduction, proceed normally and don't call set_employee_name unless they introduce themselves later.
 12. STATUS CHANGES REQUIRE EXPLICIT USER CONFIRMATION. When the user asks you to change a tire's status (e.g. "mark tire-25 as sold", "reserve the Michelins for a customer", "set tire-3 to pending"):
    a. Find the tire first (via search_tires if you don't already know it from this conversation).
    b. Describe the change clearly: "I'll mark tire-25 (Michelin X-Ice 225/65R17) as SOLD. That will move it out of the main inventory list. Confirm?" Adapt the wording for reserved/pending/available — for SOLD, always mention it leaves the main list.
@@ -226,18 +220,6 @@ const TOOLS = [
       required: ['description'],
     },
   },
-  {
-    name: 'set_employee_name',
-    description:
-      'Record the employee\'s name when they introduce themselves at the start of the conversation. Call this immediately after they tell you their name (e.g. "I\'m Dave", "this is Sarah", or just "Dave"). The name will be tagged onto any tire changes they make during this session.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        name: { type: 'string', description: 'The employee\'s first name as they gave it.' },
-      },
-      required: ['name'],
-    },
-  },
 ];
 
 const RECOMMENDED_FIELDS = ['brand', 'model', 'size', 'season', 'condition', 'quantity', 'price'];
@@ -359,7 +341,6 @@ async function runAddTire(
   currentShop: string,
   userEmail: string | null,
   source: ActivitySource,
-  employeeName: string | null,
 ) {
   const row: Record<string, unknown> = {};
   for (const f of ['shop', 'brand', 'model', 'size', 'season', 'condition', 'tread_pct', 'quantity', 'price', 'notes']) {
@@ -397,7 +378,7 @@ async function runAddTire(
     }
   }
 
-  await insertActivityLog({ action: 'added', tire: data, source, userEmail, employeeName });
+  await insertActivityLog({ action: 'added', tire: data, source, userEmail });
   return { inserted: data, missing, photos_attached: photosAttached };
 }
 
@@ -405,7 +386,6 @@ async function runUpdateTire(
   input: ToolInput,
   userEmail: string | null,
   source: ActivitySource,
-  employeeName: string | null,
 ) {
   const rawId = input.id;
   if (typeof rawId !== 'string') return { error: 'id is required' };
@@ -425,7 +405,7 @@ async function runUpdateTire(
   if (Object.keys(patch).length === 0) return { error: 'no fields to update' };
   const { data, error } = await supabase.from('tires').update(patch).eq('id', id).select().single();
   if (error) return { error: error.message };
-  await insertActivityLog({ action: 'edited', tire: data, source, userEmail, employeeName });
+  await insertActivityLog({ action: 'edited', tire: data, source, userEmail });
   return { updated: data };
 }
 
@@ -433,7 +413,6 @@ async function runDeleteTire(
   input: ToolInput,
   userEmail: string | null,
   source: ActivitySource,
-  employeeName: string | null,
 ) {
   const rawId = input.id;
   if (typeof rawId !== 'string') return { error: 'id is required' };
@@ -441,7 +420,7 @@ async function runDeleteTire(
   if (!id) return { error: `tire not found: "${rawId}"` };
   const { data, error } = await supabase.from('tires').delete().eq('id', id).select().single();
   if (error) return { error: error.message };
-  await insertActivityLog({ action: 'deleted', tire: data, source, userEmail, employeeName });
+  await insertActivityLog({ action: 'deleted', tire: data, source, userEmail });
   return { deleted: data };
 }
 
@@ -455,7 +434,6 @@ async function runAttachPhotoToTire(
   input: ToolInput,
   userEmail: string | null,
   source: ActivitySource,
-  employeeName: string | null,
 ) {
   const rawId = input.id;
   if (typeof rawId !== 'string') return { error: 'id is required' };
@@ -513,16 +491,9 @@ async function runAttachPhotoToTire(
     tire,
     source,
     userEmail,
-    employeeName,
   });
 
   return { attached, photos_attached: attached.length, tire, failed };
-}
-
-async function runSetEmployeeName(input: ToolInput) {
-  const name = typeof input.name === 'string' ? input.name.trim() : '';
-  if (!name) return { error: 'name is required' };
-  return { recorded: name };
 }
 
 async function runReportBug(
@@ -555,16 +526,14 @@ async function runTool(
   currentShop: string,
   userEmail: string | null,
   source: ActivitySource,
-  employeeName: string | null,
 ) {
   try {
     if (name === 'search_tires') return await runSearchTires(input);
-    if (name === 'add_tire') return await runAddTire(input, currentShop, userEmail, source, employeeName);
-    if (name === 'update_tire') return await runUpdateTire(input, userEmail, source, employeeName);
-    if (name === 'delete_tire') return await runDeleteTire(input, userEmail, source, employeeName);
-    if (name === 'attach_photo_to_tire') return await runAttachPhotoToTire(input, userEmail, source, employeeName);
+    if (name === 'add_tire') return await runAddTire(input, currentShop, userEmail, source);
+    if (name === 'update_tire') return await runUpdateTire(input, userEmail, source);
+    if (name === 'delete_tire') return await runDeleteTire(input, userEmail, source);
+    if (name === 'attach_photo_to_tire') return await runAttachPhotoToTire(input, userEmail, source);
     if (name === 'report_bug') return await runReportBug(input, currentShop, userEmail);
-    if (name === 'set_employee_name') return await runSetEmployeeName(input);
     return { error: `unknown tool: ${name}` };
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) };
@@ -1005,7 +974,6 @@ export async function POST(req: NextRequest) {
     messages?: Message[];
     currentShop?: string;
     currentUserEmail?: string;
-    employeeName?: string;
     hasFileInSession?: boolean;
     /** Legacy single-attachment field. Still accepted for backward compat. */
     attachment?: AttachmentInput;
@@ -1029,14 +997,6 @@ export async function POST(req: NextRequest) {
   const userEmail =
     typeof body.currentUserEmail === 'string' && body.currentUserEmail.trim()
       ? body.currentUserEmail.trim()
-      : null;
-  // Employee name persists across the tool loop. Starts from what the client
-  // sent (read from sessionStorage), then gets bumped if set_employee_name
-  // is invoked this turn — so a single-turn intro+action still tags the
-  // activity log correctly.
-  let employeeName: string | null =
-    typeof body.employeeName === 'string' && body.employeeName.trim()
-      ? body.employeeName.trim()
       : null;
 
   // If the client sent fresh attachments, fold their content blocks into the
@@ -1127,19 +1087,12 @@ export async function POST(req: NextRequest) {
 
           const toolResults: ContentBlock[] = [];
           for (const tu of toolUses) {
-            // Capture employee name BEFORE running downstream tool calls
-            // in this turn so any activity_log inserts already include it.
-            if (tu.name === 'set_employee_name') {
-              const n = typeof tu.input.name === 'string' ? tu.input.name.trim() : '';
-              if (n) employeeName = n;
-            }
             const out = await runTool(
               tu.name,
               tu.input,
               currentShop,
               userEmail,
               source,
-              employeeName,
             );
             toolResults.push({
               type: 'tool_result',

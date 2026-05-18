@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { getEmployeeName } from './employeeName';
 
 export type ActivityAction = 'added' | 'edited' | 'deleted';
 export type ActivitySource = 'form' | 'voice' | 'file';
@@ -11,7 +10,6 @@ export type ActivityLogRow = {
   tire_description: string;
   shop: string | null;
   user_email: string | null;
-  employee_name: string | null;
   source: ActivitySource;
   created_at: string;
 };
@@ -44,13 +42,15 @@ export function tireDescription(t: any): string {
  * Insert one activity_log row. Used by both the client (form actions) and
  * the chat route (voice actions). Failures are logged but never thrown —
  * activity logging must not block the underlying user action.
+ *
+ * Identity is captured as shop + user_email only. The DB still has an
+ * `employee_name` column for historical rows, but we no longer write it.
  */
 export async function insertActivityLog(args: {
   action: ActivityAction;
   tire: any;
   source: ActivitySource;
   userEmail: string | null;
-  employeeName?: string | null;
 }): Promise<void> {
   try {
     await supabase.from('activity_log').insert({
@@ -59,7 +59,6 @@ export async function insertActivityLog(args: {
       tire_description: tireDescription(args.tire),
       shop: args.tire?.shop ?? null,
       user_email: args.userEmail,
-      employee_name: args.employeeName ?? null,
       source: args.source,
     });
   } catch (e) {
@@ -69,16 +68,13 @@ export async function insertActivityLog(args: {
 
 /**
  * Client-side convenience wrapper. Auto-fetches the signed-in user's email
- * from Supabase Auth, and the employee name from sessionStorage (set by
- * the AI when the user introduced themselves), unless either is explicitly
- * passed in.
+ * from Supabase Auth unless one is explicitly passed in.
  */
 export async function logActivity(args: {
   action: ActivityAction;
   tire: any;
   source: ActivitySource;
   userEmail?: string | null;
-  employeeName?: string | null;
 }): Promise<void> {
   let email = args.userEmail;
   if (email === undefined) {
@@ -89,15 +85,10 @@ export async function logActivity(args: {
       email = null;
     }
   }
-  let employeeName = args.employeeName;
-  if (employeeName === undefined) {
-    employeeName = getEmployeeName();
-  }
   await insertActivityLog({
     action: args.action,
     tire: args.tire,
     source: args.source,
     userEmail: email ?? null,
-    employeeName: employeeName ?? null,
   });
 }
