@@ -123,11 +123,12 @@ export default function Home() {
 
       <VoiceChat variant="embedded" />
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'stretch' }}>
         <a
           href="/add"
           style={{
-            flex: '1 1 140px',
+            flex: '1 1 0',
+            minWidth: 110,
             textAlign: 'center',
             padding: '12px 14px',
             background: COLORS.red,
@@ -144,7 +145,8 @@ export default function Home() {
         <a
           href="/history"
           style={{
-            flex: '1 1 140px',
+            flex: '1 1 0',
+            minWidth: 110,
             textAlign: 'center',
             padding: '12px 14px',
             background: COLORS.surface,
@@ -161,21 +163,38 @@ export default function Home() {
         </a>
         <a
           href="/sold"
+          aria-label="Recently sold"
+          title="Recently sold"
           style={{
-            flex: '1 1 140px',
-            textAlign: 'center',
-            padding: '12px 14px',
+            flex: '0 0 auto',
+            width: 56,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '4px 4px 6px',
             background: COLORS.surface,
-            color: COLORS.red,
-            border: `2px solid ${COLORS.red}`,
+            color: COLORS.textBody,
+            border: `1px solid ${COLORS.borderStrong}`,
             borderRadius: 8,
             textDecoration: 'none',
-            fontWeight: 700,
-            fontSize: 15,
             boxSizing: 'border-box',
+            lineHeight: 1,
           }}
         >
-          🚚 Sold
+          <span style={{ fontSize: 22, lineHeight: 1 }}>🚚</span>
+          <span
+            style={{
+              fontSize: 10,
+              marginTop: 4,
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              textTransform: 'uppercase',
+              color: COLORS.textMuted,
+            }}
+          >
+            Sold
+          </span>
         </a>
       </div>
 

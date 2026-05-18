@@ -61,6 +61,28 @@ const ATTACH_ACCEPT =
 const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024; // 15 MB
 
 /**
+ * Heuristic: does the AI's reply ask the user for a yes/no confirmation?
+ * Conservative on purpose — false negatives (no panel shown when it should)
+ * are fine; false positives (panel shown for plain info questions) are
+ * annoying. Matches the phrasings the system prompt instructs the AI to
+ * use across delete, status, and file-import flows.
+ */
+function isConfirmationRequest(text: string): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  if (/\bsay yes\b/.test(lower)) return true;
+  if (/\bto confirm\b/.test(lower)) return true;
+  if (/\bconfirm\?/.test(lower)) return true;
+  if (/\b(yes\s+or\s+no|yes\/no)\b/.test(lower)) return true;
+  if (/\bare you sure\b/.test(lower)) return true;
+  const endsWithQuestion = /\?\s*$/.test(text.trim());
+  if (endsWithQuestion) {
+    if (/\b(should i|shall i|want me to|do you want)\b/.test(lower)) return true;
+  }
+  return false;
+}
+
+/**
  * Walk the chat history (newest message first) and return the most recent
  * name the AI captured via set_employee_name. Used after a /api/chat round-
  * trip to persist the name into local state + sessionStorage.
@@ -785,6 +807,79 @@ export default function VoiceChat({
             </div>
           </div>
         ))}
+        {(() => {
+          const last = uiMessages[uiMessages.length - 1];
+          if (!last || last.role !== 'assistant') return null;
+          if (sending) return null;
+          if (!isConfirmationRequest(last.text)) return null;
+          return (
+            <div
+              style={{
+                margin: '12px auto 4px',
+                padding: 12,
+                background: COLORS.surfaceSoft,
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: 12,
+              }}
+              role="group"
+              aria-label="Confirmation"
+            >
+              <p
+                style={{
+                  fontSize: 13,
+                  color: COLORS.textBody,
+                  margin: '0 0 10px',
+                  textAlign: 'center',
+                  fontWeight: 600,
+                }}
+              >
+                Do you want to confirm?
+              </p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => void send('yes')}
+                  disabled={sending}
+                  style={{
+                    flex: '1 1 0',
+                    minWidth: 0,
+                    padding: '12px 16px',
+                    background: '#2E7D32',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 8,
+                    fontSize: 15,
+                    fontWeight: 700,
+                    cursor: sending ? 'not-allowed' : 'pointer',
+                    opacity: sending ? 0.5 : 1,
+                  }}
+                >
+                  ✓ Confirm
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void send('no')}
+                  disabled={sending}
+                  style={{
+                    flex: '1 1 0',
+                    minWidth: 0,
+                    padding: '12px 16px',
+                    background: COLORS.surface,
+                    color: COLORS.textBody,
+                    border: `1px solid ${COLORS.borderStrong}`,
+                    borderRadius: 8,
+                    fontSize: 15,
+                    fontWeight: 700,
+                    cursor: sending ? 'not-allowed' : 'pointer',
+                    opacity: sending ? 0.5 : 1,
+                  }}
+                >
+                  ✕ Cancel
+                </button>
+              </div>
+            </div>
+          );
+        })()}
         {sending && (
           <div
             style={{
