@@ -1,5 +1,5 @@
 'use client';
-import { COLORS } from '../../lib/theme';
+import { COLORS, RADII, SHADOWS } from '../../lib/theme';
 import {
   STALE_STYLE,
   daysInStock,
@@ -27,6 +27,18 @@ type Props = {
   thumbUrl?: string | null;
 };
 
+// Shared pill style — every label on the card uses these dimensions so the
+// row reads as a single visual rhythm.
+const PILL_BASE = {
+  fontSize: 11,
+  padding: '4px 10px',
+  borderRadius: RADII.pill,
+  lineHeight: 1.4,
+  letterSpacing: 0.3,
+  fontWeight: 600,
+  whiteSpace: 'nowrap' as const,
+};
+
 export function TireCard({ tire: t, thumbUrl }: Props) {
   return (
     <a
@@ -37,12 +49,13 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
         color: 'inherit',
         background: COLORS.surface,
         border: `1px solid ${COLORS.border}`,
-        borderRadius: 10,
-        padding: 14,
-        marginBottom: 10,
+        borderRadius: RADII.card,
+        padding: 16,
+        marginBottom: 12,
+        boxShadow: SHADOWS.card,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'stretch', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 14 }}>
         {thumbUrl && (
           <img
             src={thumbUrl}
@@ -51,9 +64,9 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
               (e.currentTarget as HTMLImageElement).style.display = 'none';
             }}
             style={{
-              width: 64,
-              height: 64,
-              borderRadius: 8,
+              width: 68,
+              height: 68,
+              borderRadius: RADII.control,
               objectFit: 'cover',
               background: COLORS.surfaceSoft,
               flexShrink: 0,
@@ -67,25 +80,21 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
               alignItems: 'center',
               justifyContent: 'space-between',
               gap: 8,
-              marginBottom: 6,
+              marginBottom: 8,
             }}
           >
             <span
               style={{
-                fontSize: 11,
-                padding: '2px 9px',
-                borderRadius: 99,
+                ...PILL_BASE,
+                fontWeight: 700,
                 background: 'transparent',
                 color: COLORS.red,
                 border: `1px solid ${COLORS.redDeep}`,
-                fontWeight: 700,
-                letterSpacing: 0.3,
-                lineHeight: 1.4,
               }}
             >
               {t.shop || 'Unassigned'}
             </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               {t.tire_number != null && t.tire_number !== '' && (
                 <span
                   style={{
@@ -114,10 +123,11 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
           </div>
           <div
             style={{
-              fontSize: 17,
-              fontWeight: 700,
+              fontSize: 18,
+              fontWeight: 800,
               color: COLORS.ink,
               lineHeight: 1.2,
+              letterSpacing: -0.1,
             }}
           >
             {t.size || (
@@ -126,7 +136,14 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
               </span>
             )}
           </div>
-          <div style={{ fontSize: 14, color: COLORS.textMuted, marginTop: 3 }}>
+          <div
+            style={{
+              fontSize: 14,
+              color: COLORS.textMuted,
+              marginTop: 4,
+              fontWeight: 500,
+            }}
+          >
             {[t.brand, t.model].filter(Boolean).join(' ') || (
               <span style={{ fontStyle: 'italic' }}>unnamed</span>
             )}
@@ -136,7 +153,7 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
               display: 'flex',
               flexWrap: 'wrap',
               gap: 6,
-              marginTop: 10,
+              marginTop: 12,
               alignItems: 'center',
             }}
           >
@@ -145,14 +162,11 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
               return (
                 <span
                   style={{
-                    fontSize: 11,
-                    padding: '3px 8px',
-                    borderRadius: 99,
+                    ...PILL_BASE,
+                    fontWeight: 700,
                     background: 'transparent',
                     color: s.color,
                     border: `1px solid ${s.border}`,
-                    fontWeight: 700,
-                    letterSpacing: 0.4,
                   }}
                 >
                   {s.label}
@@ -162,14 +176,11 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
             {isStale(t.created_at, t.status) && (
               <span
                 style={{
-                  fontSize: 11,
-                  padding: '3px 8px',
-                  borderRadius: 99,
+                  ...PILL_BASE,
+                  fontWeight: 700,
                   background: 'transparent',
                   color: STALE_STYLE.color,
                   border: `1px solid ${STALE_STYLE.border}`,
-                  fontWeight: 700,
-                  letterSpacing: 0.3,
                 }}
                 title={`In stock ${daysInStock(t.created_at)} days`}
               >
@@ -179,11 +190,11 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
             {t.season && (
               <span
                 style={{
-                  fontSize: 12,
-                  padding: '3px 8px',
-                  borderRadius: 99,
+                  ...PILL_BASE,
+                  letterSpacing: 0.2,
                   background: COLORS.surfaceSoft,
                   color: COLORS.textBody,
+                  border: `1px solid ${COLORS.border}`,
                 }}
               >
                 {t.season}
@@ -192,16 +203,15 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
             {t.condition && (
               <span
                 style={{
-                  fontSize: 12,
-                  padding: '3px 8px',
-                  borderRadius: 99,
+                  ...PILL_BASE,
+                  letterSpacing: 0.2,
                   fontWeight: t.condition === 'new' ? 700 : 500,
                   background:
                     t.condition === 'new' ? COLORS.ink : 'transparent',
                   color: t.condition === 'new' ? COLORS.bg : COLORS.textBody,
                   border:
                     t.condition === 'new'
-                      ? 'none'
+                      ? '1px solid transparent'
                       : `1px solid ${COLORS.borderStrong}`,
                 }}
               >
@@ -212,7 +222,7 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
               style={{
                 marginLeft: 'auto',
                 display: 'inline-flex',
-                gap: 12,
+                gap: 14,
                 alignItems: 'baseline',
               }}
             >
@@ -223,7 +233,7 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
                 </span>
               </span>
               <span
-                style={{ fontSize: 16, fontWeight: 700, color: COLORS.red }}
+                style={{ fontSize: 17, fontWeight: 800, color: COLORS.red, letterSpacing: -0.2 }}
               >
                 {t.price != null && t.price !== '' ? `$${t.price}` : '—'}
               </span>

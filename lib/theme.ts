@@ -19,3 +19,24 @@ export const COLORS = {
   surfaceSoft: '#2A2724',   // tag backgrounds
   bg: '#15130F',            // page background
 } as const;
+
+/**
+ * Subtle "lift" for cards on the dark theme. A 1px highlight on the top
+ * edge suggests a soft light source; the soft drop shadow underneath
+ * provides depth without making the page feel busy. Use sparingly on
+ * primary content cards (tire cards, log entries, form panels).
+ */
+export const SHADOWS = {
+  card: '0 1px 3px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)',
+  raised: '0 4px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
+} as const;
+
+/**
+ * Standard radii so everything feels like it's from the same toolkit.
+ * Cards 12, inputs/buttons 10, pills 999, tight pills 999 (full-rounded).
+ */
+export const RADII = {
+  card: 12,
+  control: 10,   // buttons, inputs
+  pill: 999,
+} as const;

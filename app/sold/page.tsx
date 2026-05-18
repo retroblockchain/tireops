@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { COLORS } from '../../lib/theme';
+import { COLORS, RADII } from '../../lib/theme';
 import { useCurrentShop } from '../../lib/useCurrentShop';
 import { loadFirstPhotosByTire } from '../../lib/photos';
 import { TireCard } from '../components/TireCard';
@@ -71,11 +71,11 @@ export default function SoldPage() {
           aria-label={`Signed in as ${currentShop}`}
           style={{
             fontSize: 11,
-            padding: '3px 9px',
+            padding: '4px 10px',
             background: COLORS.redSoftBg,
             color: COLORS.red,
             border: `1px solid ${COLORS.red}`,
-            borderRadius: 999,
+            borderRadius: RADII.pill,
             fontWeight: 700,
             letterSpacing: 0.3,
             whiteSpace: 'nowrap',
@@ -109,11 +109,11 @@ export default function SoldPage() {
         <div
           style={{
             textAlign: 'center',
-            padding: '32px 16px',
+            padding: '40px 20px',
             color: COLORS.textMuted,
             fontSize: 14,
             border: `1px dashed ${COLORS.border}`,
-            borderRadius: 10,
+            borderRadius: RADII.card,
             background: COLORS.surface,
           }}
         >

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { COLORS } from '../../lib/theme';
+import { COLORS, RADII, SHADOWS } from '../../lib/theme';
 import { ActivityLogRow } from '../../lib/activity';
 import { useCurrentShop } from '../../lib/useCurrentShop';
 
@@ -84,11 +84,11 @@ export default function HistoryPage() {
           aria-label={`Signed in as ${currentShop}`}
           style={{
             fontSize: 11,
-            padding: '3px 9px',
+            padding: '4px 10px',
             background: COLORS.redSoftBg,
             color: COLORS.red,
             border: `1px solid ${COLORS.red}`,
-            borderRadius: 999,
+            borderRadius: RADII.pill,
             fontWeight: 700,
             letterSpacing: 0.3,
             whiteSpace: 'nowrap',
@@ -122,11 +122,11 @@ export default function HistoryPage() {
         <div
           style={{
             textAlign: 'center',
-            padding: '32px 16px',
+            padding: '40px 20px',
             color: COLORS.textMuted,
             fontSize: 14,
             border: `1px dashed ${COLORS.border}`,
-            borderRadius: 10,
+            borderRadius: RADII.card,
             background: COLORS.surface,
           }}
         >
@@ -142,9 +142,10 @@ export default function HistoryPage() {
             style={{
               background: COLORS.surface,
               border: `1px solid ${COLORS.border}`,
-              borderRadius: 10,
-              padding: 14,
-              marginBottom: 10,
+              borderRadius: RADII.card,
+              padding: 16,
+              marginBottom: 12,
+              boxShadow: SHADOWS.card,
             }}
           >
             <div
@@ -182,11 +183,12 @@ export default function HistoryPage() {
                 fontSize: 15,
                 fontWeight: 700,
                 color: COLORS.ink,
-                marginTop: 4,
-                marginBottom: 6,
+                marginTop: 6,
+                marginBottom: 10,
                 overflowWrap: 'anywhere',
                 wordBreak: 'break-word',
-                lineHeight: 1.3,
+                lineHeight: 1.35,
+                letterSpacing: -0.1,
               }}
             >
               {r.tire_description || 'tire'}
@@ -203,25 +205,30 @@ export default function HistoryPage() {
             >
               <span
                 style={{
-                  padding: '2px 8px',
-                  borderRadius: 99,
+                  fontSize: 11,
+                  padding: '4px 10px',
+                  borderRadius: RADII.pill,
                   color: COLORS.red,
                   border: `1px solid ${COLORS.redDeep}`,
                   fontWeight: 600,
                   letterSpacing: 0.3,
                   whiteSpace: 'nowrap',
+                  lineHeight: 1.4,
                 }}
               >
                 {r.shop || 'Unassigned'}
               </span>
               <span
                 style={{
-                  padding: '2px 8px',
-                  borderRadius: 99,
+                  fontSize: 11,
+                  padding: '4px 10px',
+                  borderRadius: RADII.pill,
                   background: COLORS.surfaceSoft,
                   color: COLORS.textBody,
-                  fontWeight: 500,
+                  fontWeight: 600,
+                  letterSpacing: 0.2,
                   whiteSpace: 'nowrap',
+                  lineHeight: 1.4,
                 }}
               >
                 {r.source === 'voice'

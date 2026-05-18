@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
-import { COLORS } from '../../lib/theme';
+import { COLORS, RADII, SHADOWS } from '../../lib/theme';
 import { uploadTirePhoto } from '../../lib/photos';
 import { useCurrentShop } from '../../lib/useCurrentShop';
 import { UNASSIGNED_SHOP } from '../../lib/shops';
@@ -136,11 +136,11 @@ export default function AddTire() {
           aria-label={`Signed in as ${currentShop}`}
           style={{
             fontSize: 11,
-            padding: '3px 9px',
+            padding: '4px 10px',
             background: COLORS.redSoftBg,
             color: COLORS.red,
             border: `1px solid ${COLORS.red}`,
-            borderRadius: 999,
+            borderRadius: RADII.pill,
             fontWeight: 700,
             letterSpacing: 0.3,
             whiteSpace: 'nowrap',
@@ -167,7 +167,7 @@ export default function AddTire() {
       </p>
 
       {FIELDS.map((f) => (
-        <div key={f.key} style={{ marginBottom: 12 }}>
+        <div key={f.key} style={{ marginBottom: 14 }}>
           <label
             htmlFor={f.key}
             style={{
@@ -175,7 +175,8 @@ export default function AddTire() {
               fontSize: 13,
               color: COLORS.textBody,
               fontWeight: 600,
-              marginBottom: 4,
+              marginBottom: 6,
+              letterSpacing: 0.1,
             }}
           >
             {f.label}
@@ -188,9 +189,9 @@ export default function AddTire() {
             placeholder={f.placeholder}
             style={{
               width: '100%',
-              padding: 12,
+              padding: '12px 14px',
               fontSize: 16,
-              borderRadius: 8,
+              borderRadius: RADII.control,
               border: `1px solid ${COLORS.borderStrong}`,
               background: COLORS.surface,
               color: COLORS.ink,
@@ -236,13 +237,13 @@ export default function AddTire() {
             onClick={() => cameraInputRef.current?.click()}
             style={{
               flex: '1 1 140px',
-              padding: '10px 12px',
+              padding: '11px 14px',
               fontSize: 14,
               fontWeight: 600,
               background: COLORS.surface,
               color: COLORS.ink,
               border: `1px solid ${COLORS.borderStrong}`,
-              borderRadius: 8,
+              borderRadius: RADII.control,
               cursor: 'pointer',
             }}
           >
@@ -253,13 +254,13 @@ export default function AddTire() {
             onClick={() => galleryInputRef.current?.click()}
             style={{
               flex: '1 1 140px',
-              padding: '10px 12px',
+              padding: '11px 14px',
               fontSize: 14,
               fontWeight: 600,
               background: COLORS.surface,
               color: COLORS.ink,
               border: `1px solid ${COLORS.borderStrong}`,
-              borderRadius: 8,
+              borderRadius: RADII.control,
               cursor: 'pointer',
             }}
           >
@@ -280,10 +281,11 @@ export default function AddTire() {
                 style={{
                   position: 'relative',
                   paddingTop: '100%',
-                  borderRadius: 8,
+                  borderRadius: RADII.control,
                   overflow: 'hidden',
                   background: COLORS.surfaceSoft,
                   border: `1px solid ${COLORS.border}`,
+                  boxShadow: SHADOWS.card,
                 }}
               >
                 <img
@@ -332,14 +334,16 @@ export default function AddTire() {
         onClick={save}
         disabled={saving}
         style={{
-          padding: 14,
+          padding: '14px 16px',
           fontSize: 16,
           width: '100%',
           background: COLORS.red,
           color: '#fff',
           border: 'none',
-          borderRadius: 8,
+          borderRadius: RADII.control,
           fontWeight: 700,
+          letterSpacing: -0.1,
+          boxShadow: SHADOWS.card,
           cursor: saving ? 'not-allowed' : 'pointer',
           opacity: saving ? 0.6 : 1,
           marginTop: 8,

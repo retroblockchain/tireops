@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { COLORS } from '../lib/theme';
+import { COLORS, RADII, SHADOWS } from '../lib/theme';
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
@@ -75,7 +75,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
             fontSize: 13,
             color: COLORS.textBody,
             fontWeight: 600,
-            marginBottom: 4,
+            marginBottom: 6,
+            letterSpacing: 0.1,
           }}
         >
           Email
@@ -89,11 +90,11 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           inputMode="email"
           style={{
             width: '100%',
-            padding: 12,
+            padding: '12px 14px',
             fontSize: 16,
-            borderRadius: 8,
+            borderRadius: RADII.control,
             border: `1px solid ${COLORS.borderStrong}`,
-            marginBottom: 12,
+            marginBottom: 14,
             boxSizing: 'border-box',
             background: COLORS.surface,
             color: COLORS.ink,
@@ -107,7 +108,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
             fontSize: 13,
             color: COLORS.textBody,
             fontWeight: 600,
-            marginBottom: 4,
+            marginBottom: 6,
+            letterSpacing: 0.1,
           }}
         >
           Password
@@ -121,11 +123,11 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           autoComplete="current-password"
           style={{
             width: '100%',
-            padding: 12,
+            padding: '12px 14px',
             fontSize: 16,
-            borderRadius: 8,
+            borderRadius: RADII.control,
             border: `1px solid ${COLORS.borderStrong}`,
-            marginBottom: 16,
+            marginBottom: 18,
             boxSizing: 'border-box',
             background: COLORS.surface,
             color: COLORS.ink,
@@ -135,15 +137,17 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         <button
           onClick={login}
           style={{
-            padding: 14,
+            padding: '14px 16px',
             fontSize: 16,
             width: '100%',
             background: COLORS.red,
             color: '#fff',
             border: 'none',
-            borderRadius: 8,
+            borderRadius: RADII.control,
             fontWeight: 700,
+            letterSpacing: -0.1,
             cursor: 'pointer',
+            boxShadow: SHADOWS.card,
           }}
         >
           Sign in

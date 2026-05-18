@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { COLORS } from '../../lib/theme';
+import { COLORS, RADII, SHADOWS } from '../../lib/theme';
 import { useAuthInfo } from '../../lib/useCurrentShop';
 import { UNASSIGNED_SHOP } from '../../lib/shops';
 
@@ -117,11 +117,11 @@ export default function BugsPage() {
           aria-label={`Signed in as ${currentShop}`}
           style={{
             fontSize: 11,
-            padding: '3px 9px',
+            padding: '4px 10px',
             background: COLORS.redSoftBg,
             color: COLORS.red,
             border: `1px solid ${COLORS.red}`,
-            borderRadius: 999,
+            borderRadius: RADII.pill,
             fontWeight: 700,
             letterSpacing: 0.3,
             whiteSpace: 'nowrap',
@@ -149,9 +149,10 @@ export default function BugsPage() {
         style={{
           background: COLORS.surface,
           border: `1px solid ${COLORS.border}`,
-          borderRadius: 10,
-          padding: 14,
+          borderRadius: RADII.card,
+          padding: 16,
           marginBottom: 20,
+          boxShadow: SHADOWS.card,
         }}
       >
         <label
@@ -161,7 +162,8 @@ export default function BugsPage() {
             fontSize: 13,
             color: COLORS.textBody,
             fontWeight: 600,
-            marginBottom: 6,
+            marginBottom: 8,
+            letterSpacing: 0.1,
           }}
         >
           Report a new bug
@@ -174,9 +176,9 @@ export default function BugsPage() {
           rows={3}
           style={{
             width: '100%',
-            padding: 12,
+            padding: '12px 14px',
             fontSize: 15,
-            borderRadius: 8,
+            borderRadius: RADII.control,
             border: `1px solid ${COLORS.borderStrong}`,
             background: COLORS.bg,
             color: COLORS.ink,
@@ -191,7 +193,7 @@ export default function BugsPage() {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginTop: 10,
+            marginTop: 12,
             gap: 10,
             flexWrap: 'wrap',
           }}
@@ -203,15 +205,17 @@ export default function BugsPage() {
             onClick={submit}
             disabled={submitting || !draft.trim()}
             style={{
-              padding: '10px 18px',
+              padding: '11px 20px',
               fontSize: 14,
               background: COLORS.red,
               color: '#fff',
               border: 'none',
-              borderRadius: 8,
+              borderRadius: RADII.control,
               fontWeight: 700,
+              letterSpacing: -0.1,
               cursor: submitting || !draft.trim() ? 'not-allowed' : 'pointer',
               opacity: submitting || !draft.trim() ? 0.5 : 1,
+              boxShadow: SHADOWS.card,
             }}
           >
             {submitting ? 'Sending…' : 'Submit'}
@@ -249,11 +253,11 @@ export default function BugsPage() {
         <div
           style={{
             textAlign: 'center',
-            padding: '32px 16px',
+            padding: '40px 20px',
             color: COLORS.textMuted,
             fontSize: 14,
             border: `1px dashed ${COLORS.border}`,
-            borderRadius: 10,
+            borderRadius: RADII.card,
             background: COLORS.surface,
           }}
         >
@@ -266,20 +270,22 @@ export default function BugsPage() {
           style={{
             background: COLORS.surface,
             border: `1px solid ${COLORS.border}`,
-            borderRadius: 10,
-            padding: 14,
-            marginBottom: 10,
+            borderRadius: RADII.card,
+            padding: 16,
+            marginBottom: 12,
+            boxShadow: SHADOWS.card,
           }}
         >
           <div
             style={{
               fontSize: 15,
               color: COLORS.ink,
-              marginBottom: 8,
+              marginBottom: 10,
               whiteSpace: 'pre-wrap',
               overflowWrap: 'anywhere',
               wordBreak: 'break-word',
               lineHeight: 1.4,
+              fontWeight: 500,
             }}
           >
             {b.description}
@@ -296,25 +302,30 @@ export default function BugsPage() {
           >
             <span
               style={{
-                padding: '2px 8px',
-                borderRadius: 99,
+                fontSize: 11,
+                padding: '4px 10px',
+                borderRadius: RADII.pill,
                 color: COLORS.red,
                 border: `1px solid ${COLORS.redDeep}`,
                 fontWeight: 600,
                 letterSpacing: 0.3,
                 whiteSpace: 'nowrap',
+                lineHeight: 1.4,
               }}
             >
               {b.shop || 'Unassigned'}
             </span>
             <span
               style={{
-                padding: '2px 8px',
-                borderRadius: 99,
+                fontSize: 11,
+                padding: '4px 10px',
+                borderRadius: RADII.pill,
                 background: COLORS.surfaceSoft,
                 color: COLORS.textBody,
-                fontWeight: 500,
+                fontWeight: 600,
+                letterSpacing: 0.2,
                 whiteSpace: 'nowrap',
+                lineHeight: 1.4,
               }}
             >
               {b.source === 'ai' ? '🤖 AI' : '📝 manual'}

@@ -12,6 +12,7 @@ import {
 import { useCurrentShop } from '../../../lib/useCurrentShop';
 import { logActivity } from '../../../lib/activity';
 import { TIRE_STATUSES, statusStyle } from '../../../lib/tireStatus';
+import { RADII, SHADOWS } from '../../../lib/theme';
 
 type Field = { key: string; label: string; type?: string };
 const FIELDS: Field[] = [
@@ -164,11 +165,11 @@ export default function EditTire() {
           aria-label={`Signed in as ${currentShop}`}
           style={{
             fontSize: 11,
-            padding: '3px 9px',
+            padding: '4px 10px',
             background: COLORS.redSoftBg,
             color: COLORS.red,
             border: `1px solid ${COLORS.red}`,
-            borderRadius: 999,
+            borderRadius: RADII.pill,
             fontWeight: 700,
             letterSpacing: 0.3,
             whiteSpace: 'nowrap',
@@ -205,7 +206,7 @@ export default function EditTire() {
       )}
 
       {FIELDS.map((f) => (
-        <div key={f.key} style={{ marginBottom: 12 }}>
+        <div key={f.key} style={{ marginBottom: 14 }}>
           <label
             htmlFor={f.key}
             style={{
@@ -213,7 +214,8 @@ export default function EditTire() {
               fontSize: 13,
               color: COLORS.textBody,
               fontWeight: 600,
-              marginBottom: 4,
+              marginBottom: 6,
+              letterSpacing: 0.1,
             }}
           >
             {f.label}
@@ -225,9 +227,9 @@ export default function EditTire() {
             onChange={(e) => setTire({ ...tire, [f.key]: e.target.value })}
             style={{
               width: '100%',
-              padding: 12,
+              padding: '12px 14px',
               fontSize: 16,
-              borderRadius: 8,
+              borderRadius: RADII.control,
               border: `1px solid ${COLORS.borderStrong}`,
               background: COLORS.surface,
               color: COLORS.ink,
@@ -262,17 +264,17 @@ export default function EditTire() {
                 aria-pressed={active}
                 style={{
                   flex: '1 1 80px',
-                  padding: '10px 12px',
+                  padding: '11px 12px',
                   fontSize: 12,
                   fontWeight: 700,
                   textTransform: 'uppercase',
-                  letterSpacing: 0.3,
+                  letterSpacing: 0.4,
                   background: 'transparent',
                   color: active ? ss.color : COLORS.textMuted,
                   border: `1px solid ${
                     active ? ss.border : COLORS.borderStrong
                   }`,
-                  borderRadius: 8,
+                  borderRadius: RADII.control,
                   cursor: 'pointer',
                   boxShadow: active
                     ? `inset 0 0 0 1px ${ss.border}`
@@ -323,13 +325,13 @@ export default function EditTire() {
             disabled={uploading}
             style={{
               flex: '1 1 140px',
-              padding: '10px 12px',
+              padding: '11px 14px',
               fontSize: 14,
               fontWeight: 600,
               background: COLORS.surface,
               color: COLORS.ink,
               border: `1px solid ${COLORS.borderStrong}`,
-              borderRadius: 8,
+              borderRadius: RADII.control,
               cursor: uploading ? 'not-allowed' : 'pointer',
               opacity: uploading ? 0.6 : 1,
             }}
@@ -342,13 +344,13 @@ export default function EditTire() {
             disabled={uploading}
             style={{
               flex: '1 1 140px',
-              padding: '10px 12px',
+              padding: '11px 14px',
               fontSize: 14,
               fontWeight: 600,
               background: COLORS.surface,
               color: COLORS.ink,
               border: `1px solid ${COLORS.borderStrong}`,
-              borderRadius: 8,
+              borderRadius: RADII.control,
               cursor: uploading ? 'not-allowed' : 'pointer',
               opacity: uploading ? 0.6 : 1,
             }}
@@ -380,10 +382,11 @@ export default function EditTire() {
                 style={{
                   position: 'relative',
                   paddingTop: '100%',
-                  borderRadius: 8,
+                  borderRadius: RADII.control,
                   overflow: 'hidden',
                   background: COLORS.surfaceSoft,
                   border: `1px solid ${COLORS.border}`,
+                  boxShadow: SHADOWS.card,
                 }}
               >
                 <img
@@ -434,16 +437,18 @@ export default function EditTire() {
       <button
         onClick={save}
         style={{
-          padding: 14,
+          padding: '14px 16px',
           fontSize: 16,
           width: '100%',
           background: COLORS.red,
           color: '#fff',
           border: 'none',
-          borderRadius: 8,
+          borderRadius: RADII.control,
           fontWeight: 700,
+          letterSpacing: -0.1,
           cursor: 'pointer',
           marginTop: 8,
+          boxShadow: SHADOWS.card,
         }}
       >
         Save
@@ -451,18 +456,18 @@ export default function EditTire() {
 
       <div
         style={{
-          marginTop: 28,
-          paddingTop: 16,
+          marginTop: 32,
+          paddingTop: 18,
           borderTop: `1px solid ${COLORS.border}`,
         }}
       >
         <p
           style={{
-            fontSize: 12,
+            fontSize: 11,
             color: COLORS.textMuted,
-            margin: '0 0 8px',
-            fontWeight: 600,
-            letterSpacing: 0.5,
+            margin: '0 0 10px',
+            fontWeight: 700,
+            letterSpacing: 0.6,
             textTransform: 'uppercase',
           }}
         >
@@ -471,13 +476,13 @@ export default function EditTire() {
         <button
           onClick={remove}
           style={{
-            padding: 12,
+            padding: '12px 14px',
             fontSize: 15,
             width: '100%',
             background: COLORS.surface,
             color: COLORS.redDeep,
-            border: `2px solid ${COLORS.redDeep}`,
-            borderRadius: 8,
+            border: `1.5px solid ${COLORS.redDeep}`,
+            borderRadius: RADII.control,
             fontWeight: 700,
             cursor: 'pointer',
           }}

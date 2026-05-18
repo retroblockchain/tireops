@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { COLORS } from '../../lib/theme';
+import { COLORS, RADII, SHADOWS } from '../../lib/theme';
 import { useAuthInfo } from '../../lib/useCurrentShop';
 import { uploadPendingPhoto } from '../../lib/photos';
 import { UNASSIGNED_SHOP } from '../../lib/shops';
@@ -733,7 +733,7 @@ export default function VoiceChat({
               appearance: 'none',
               WebkitAppearance: 'none',
               MozAppearance: 'none',
-              padding: '5px 24px 5px 11px',
+              padding: '5px 26px 5px 12px',
               fontSize: 12,
               fontWeight: 700,
               textTransform: 'none',
@@ -741,7 +741,7 @@ export default function VoiceChat({
               background: COLORS.redSoftBg,
               color: COLORS.red,
               border: `1px solid ${COLORS.red}`,
-              borderRadius: 999,
+              borderRadius: RADII.pill,
               cursor: 'pointer',
               lineHeight: 1.2,
               fontFamily: 'inherit',
@@ -788,13 +788,14 @@ export default function VoiceChat({
               display: 'inline-flex',
               alignItems: 'center',
               gap: 8,
-              padding: '4px 10px',
+              padding: '5px 12px',
               background: COLORS.redSoftBg,
               border: `1px solid ${COLORS.red}`,
               color: COLORS.red,
-              borderRadius: 999,
+              borderRadius: RADII.pill,
               fontSize: 13,
               fontWeight: 700,
+              letterSpacing: 0.1,
             }}
           >
             <span
@@ -818,13 +819,14 @@ export default function VoiceChat({
               display: 'inline-flex',
               alignItems: 'center',
               gap: 8,
-              padding: '4px 10px',
+              padding: '5px 12px',
               background: COLORS.surface,
               border: `1px solid ${COLORS.borderStrong}`,
               color: COLORS.textBody,
-              borderRadius: 999,
+              borderRadius: RADII.pill,
               fontSize: 13,
               fontWeight: 600,
+              letterSpacing: 0.1,
             }}
           >
             <span
@@ -850,8 +852,8 @@ export default function VoiceChat({
             : { flex: 1, minHeight: 120 }),
           overflowY: 'auto',
           border: `1px solid ${COLORS.border}`,
-          borderRadius: 10,
-          padding: 12,
+          borderRadius: RADII.card,
+          padding: 14,
           marginBottom: 12,
           background: variant === 'page' ? COLORS.surface : COLORS.bg,
         }}
@@ -875,14 +877,14 @@ export default function VoiceChat({
             style={{
               display: 'flex',
               justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
-              marginBottom: 8,
+              marginBottom: 10,
             }}
           >
             <div
               style={{
-                maxWidth: '80%',
-                padding: '8px 12px',
-                borderRadius: 14,
+                maxWidth: '82%',
+                padding: '9px 13px',
+                borderRadius: 16,
                 background: m.role === 'user' ? COLORS.red : COLORS.surface,
                 color: m.role === 'user' ? '#fff' : COLORS.ink,
                 border:
@@ -891,7 +893,8 @@ export default function VoiceChat({
                 whiteSpace: 'pre-wrap',
                 overflowWrap: 'anywhere',
                 wordBreak: 'break-word',
-                lineHeight: 1.35,
+                lineHeight: 1.4,
+                boxShadow: m.role === 'assistant' ? SHADOWS.card : 'none',
               }}
             >
               {m.attachmentName && (
@@ -963,11 +966,12 @@ export default function VoiceChat({
           return (
             <div
               style={{
-                margin: '12px auto 4px',
-                padding: 12,
+                margin: '14px auto 4px',
+                padding: 14,
                 background: COLORS.surfaceSoft,
                 border: `1px solid ${COLORS.border}`,
-                borderRadius: 12,
+                borderRadius: RADII.card,
+                boxShadow: SHADOWS.card,
               }}
               role="group"
               aria-label="Confirmation"
@@ -976,9 +980,10 @@ export default function VoiceChat({
                 style={{
                   fontSize: 13,
                   color: COLORS.textBody,
-                  margin: '0 0 10px',
+                  margin: '0 0 12px',
                   textAlign: 'center',
                   fontWeight: 600,
+                  letterSpacing: 0.1,
                 }}
               >
                 Do you want to confirm?
@@ -995,11 +1000,13 @@ export default function VoiceChat({
                     background: '#2E7D32',
                     color: '#fff',
                     border: 'none',
-                    borderRadius: 8,
+                    borderRadius: RADII.control,
                     fontSize: 15,
                     fontWeight: 700,
+                    letterSpacing: -0.1,
                     cursor: sending ? 'not-allowed' : 'pointer',
                     opacity: sending ? 0.5 : 1,
+                    boxShadow: SHADOWS.card,
                   }}
                 >
                   ✓ Confirm
@@ -1015,9 +1022,10 @@ export default function VoiceChat({
                     background: COLORS.surface,
                     color: COLORS.textBody,
                     border: `1px solid ${COLORS.borderStrong}`,
-                    borderRadius: 8,
+                    borderRadius: RADII.control,
                     fontSize: 15,
                     fontWeight: 700,
+                    letterSpacing: -0.1,
                     cursor: sending ? 'not-allowed' : 'pointer',
                     opacity: sending ? 0.5 : 1,
                   }}
@@ -1061,8 +1069,9 @@ export default function VoiceChat({
               background: COLORS.surface,
               color: COLORS.textBody,
               border: `1px solid ${COLORS.borderStrong}`,
-              borderRadius: 999,
+              borderRadius: RADII.pill,
               cursor: 'pointer',
+              letterSpacing: 0.1,
             }}
           >
             🔇 Stop voice
@@ -1077,14 +1086,15 @@ export default function VoiceChat({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 8,
-            padding: '6px 8px 6px 12px',
+            padding: '6px 8px 6px 14px',
             background: COLORS.surface,
             border: `1px solid ${COLORS.red}`,
-            borderRadius: 999,
-            marginBottom: 8,
+            borderRadius: RADII.pill,
+            marginBottom: 10,
             color: COLORS.red,
             fontSize: 13,
             fontWeight: 600,
+            letterSpacing: 0.1,
           }}
         >
           <span
@@ -1187,9 +1197,9 @@ export default function VoiceChat({
             flex: 1,
             minWidth: 0,
             width: '100%',
-            padding: 12,
+            padding: '12px 14px',
             fontSize: 16,
-            borderRadius: 8,
+            borderRadius: RADII.control,
             border: `1px solid ${COLORS.borderStrong}`,
             background: COLORS.surface,
             color: COLORS.ink,
@@ -1200,15 +1210,17 @@ export default function VoiceChat({
           onClick={() => void send(draft)}
           disabled={sending || !draft.trim()}
           style={{
-            padding: '12px 14px',
-            fontSize: 16,
+            padding: '12px 16px',
+            fontSize: 15,
             background: COLORS.red,
             color: '#fff',
             border: 'none',
-            borderRadius: 8,
+            borderRadius: RADII.control,
             cursor: sending || !draft.trim() ? 'not-allowed' : 'pointer',
             fontWeight: 700,
+            letterSpacing: -0.1,
             opacity: sending || !draft.trim() ? 0.5 : 1,
+            boxShadow: SHADOWS.card,
           }}
         >
           Send
@@ -1228,9 +1240,10 @@ export default function VoiceChat({
         style={{
           background: COLORS.surface,
           border: `1px solid ${COLORS.border}`,
-          borderRadius: 12,
+          borderRadius: RADII.card,
           marginBottom: 14,
           overflow: 'hidden',
+          boxShadow: SHADOWS.card,
         }}
       >
         <button
@@ -1347,11 +1360,11 @@ export default function VoiceChat({
           aria-label={`Signed in as ${currentShop}`}
           style={{
             fontSize: 11,
-            padding: '3px 9px',
+            padding: '4px 10px',
             background: COLORS.redSoftBg,
             color: COLORS.red,
             border: `1px solid ${COLORS.red}`,
-            borderRadius: 999,
+            borderRadius: RADII.pill,
             fontWeight: 700,
             letterSpacing: 0.3,
             whiteSpace: 'nowrap',

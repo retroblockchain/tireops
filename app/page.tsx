@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { APP_VERSION } from '../lib/version';
-import { COLORS } from '../lib/theme';
+import { COLORS, RADII, SHADOWS } from '../lib/theme';
 import { loadFirstPhotosByTire } from '../lib/photos';
 import { useCurrentShop } from '../lib/useCurrentShop';
 import { isStale, STALE_STYLE } from '../lib/tireStatus';
@@ -82,11 +82,11 @@ export default function Home() {
             title={`Signed in as ${currentShop}`}
             style={{
               fontSize: 11,
-              padding: '3px 9px',
+              padding: '4px 10px',
               background: COLORS.redSoftBg,
               color: COLORS.red,
               border: `1px solid ${COLORS.red}`,
-              borderRadius: 999,
+              borderRadius: RADII.pill,
               fontWeight: 700,
               letterSpacing: 0.3,
               whiteSpace: 'nowrap',
@@ -99,13 +99,14 @@ export default function Home() {
           onClick={() => supabase.auth.signOut()}
           style={{
             fontSize: 13,
-            padding: '6px 10px',
+            padding: '6px 12px',
             background: COLORS.surface,
             color: COLORS.textMuted,
             border: `1px solid ${COLORS.border}`,
-            borderRadius: 6,
+            borderRadius: RADII.control,
             cursor: 'pointer',
             flexShrink: 0,
+            fontWeight: 500,
           }}
         >
           Sign out
@@ -123,21 +124,23 @@ export default function Home() {
 
       <VoiceChat variant="embedded" />
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'stretch' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap', alignItems: 'stretch' }}>
         <a
           href="/add"
           style={{
             flex: '1 1 0',
             minWidth: 110,
             textAlign: 'center',
-            padding: '12px 14px',
+            padding: '13px 16px',
             background: COLORS.red,
             color: '#fff',
-            borderRadius: 8,
+            borderRadius: RADII.control,
             textDecoration: 'none',
             fontWeight: 700,
             fontSize: 15,
+            letterSpacing: -0.1,
             boxSizing: 'border-box',
+            boxShadow: SHADOWS.card,
           }}
         >
           + Add tire
@@ -148,14 +151,15 @@ export default function Home() {
             flex: '1 1 0',
             minWidth: 110,
             textAlign: 'center',
-            padding: '12px 14px',
+            padding: '13px 16px',
             background: COLORS.surface,
             color: COLORS.red,
-            border: `2px solid ${COLORS.red}`,
-            borderRadius: 8,
+            border: `1.5px solid ${COLORS.red}`,
+            borderRadius: RADII.control,
             textDecoration: 'none',
             fontWeight: 700,
             fontSize: 15,
+            letterSpacing: -0.1,
             boxSizing: 'border-box',
           }}
         >
@@ -172,23 +176,24 @@ export default function Home() {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '4px 4px 6px',
+            padding: '6px 4px 8px',
             background: COLORS.surface,
             color: COLORS.textBody,
-            border: `1px solid ${COLORS.borderStrong}`,
-            borderRadius: 8,
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: RADII.control,
             textDecoration: 'none',
             boxSizing: 'border-box',
             lineHeight: 1,
+            boxShadow: SHADOWS.card,
           }}
         >
           <span style={{ fontSize: 22, lineHeight: 1 }}>🚚</span>
           <span
             style={{
               fontSize: 10,
-              marginTop: 4,
+              marginTop: 5,
               fontWeight: 700,
-              letterSpacing: 0.5,
+              letterSpacing: 0.6,
               textTransform: 'uppercase',
               color: COLORS.textMuted,
             }}
@@ -241,9 +246,9 @@ export default function Home() {
           placeholder="Search brand, size, season..."
           style={{
             width: '100%',
-            padding: 12,
+            padding: '12px 14px',
             fontSize: 16,
-            borderRadius: 8,
+            borderRadius: RADII.control,
             border: `1px solid ${COLORS.borderStrong}`,
             marginBottom: 12,
             boxSizing: 'border-box',
@@ -272,13 +277,14 @@ export default function Home() {
               aria-pressed={staleOnly}
               style={{
                 fontSize: 12,
-                padding: '4px 10px',
+                padding: '5px 12px',
                 background: staleOnly ? STALE_STYLE.color : 'transparent',
                 color: staleOnly ? '#1a1a1a' : STALE_STYLE.color,
                 border: `1px solid ${STALE_STYLE.border}`,
-                borderRadius: 999,
+                borderRadius: RADII.pill,
                 cursor: 'pointer',
                 fontWeight: 700,
+                letterSpacing: 0.2,
                 whiteSpace: 'nowrap',
               }}
             >
@@ -292,11 +298,11 @@ export default function Home() {
           <div
             style={{
               textAlign: 'center',
-              padding: '32px 16px',
+              padding: '40px 20px',
               color: COLORS.textMuted,
               fontSize: 14,
               border: `1px dashed ${COLORS.border}`,
-              borderRadius: 10,
+              borderRadius: RADII.card,
               background: COLORS.surface,
             }}
           >
