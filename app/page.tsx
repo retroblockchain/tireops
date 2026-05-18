@@ -1,26 +1,36 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
 import { APP_VERSION } from '../lib/version';
-import { COLORS, RADII } from '../lib/theme';
+import { COLORS, RADII, SHADOWS } from '../lib/theme';
 import { loadFirstPhotosByTire } from '../lib/photos';
 import { useCurrentShop } from '../lib/useCurrentShop';
-import { isStale, STALE_STYLE } from '../lib/tireStatus';
-import { TIRE_LOCATIONS } from '../lib/locations';
 import { TireCard } from './components/TireCard';
 import VoiceChat from './components/VoiceChat';
 
-const RECENT_COUNT = 8;
-const ANY_LOCATION = '__any__';
+// Dashboard tuning: keep the surfaces around the chat short so the chat
+// itself is unmistakably the primary action when the app opens.
+const RECENT_ADDED = 3;
+const RECENT_SOLD_LIMIT = 5;
+const SHOP_NAMES = ['Mission', 'Aldergrove', 'Lethbridge'] as const;
+
+const sectionHeaderStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: COLORS.textMuted,
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+  margin: '0 0 8px',
+  fontWeight: 700,
+};
 
 export default function Home() {
+  const router = useRouter();
   const [tires, setTires] = useState<any[]>([]);
-  const [q, setQ] = useState('');
   const [photosByTire, setPhotosByTire] = useState<Map<string, string>>(
     new Map(),
   );
-  const [staleOnly, setStaleOnly] = useState(false);
-  const [locationFilter, setLocationFilter] = useState<string>(ANY_LOCATION);
+  const [searchDraft, setSearchDraft] = useState('');
   const currentShop = useCurrentShop();
 
   useEffect(() => {
@@ -32,35 +42,40 @@ export default function Home() {
     loadFirstPhotosByTire().then(setPhotosByTire);
   }, []);
 
-  // Sold tires live on their own page — keep them out of the main views.
+  // Live = not sold. Sold goes through its own sort (by mark-sold time,
+  // approximated by updated_at) for the "Recently sold" glance below.
   const liveTires = tires.filter((t) => t.status !== 'sold');
-  const staleCount = liveTires.filter((t) => isStale(t.created_at, t.status))
-    .length;
-  // Options shown in the location filter dropdown — the preset list plus
-  // any extra custom locations staff have actually saved on a tire. This
-  // keeps the filter useful even when someone types "Container A" by hand.
-  const locationOptions = (() => {
-    const set = new Set<string>(TIRE_LOCATIONS);
-    for (const t of liveTires) {
-      if (t.location && typeof t.location === 'string' && t.location.trim()) {
-        set.add(t.location.trim());
-      }
+  const soldTires = tires
+    .filter((t) => t.status === 'sold')
+    .sort((a, b) => {
+      const tb = new Date(b.updated_at || b.created_at || 0).getTime();
+      const ta = new Date(a.updated_at || a.created_at || 0).getTime();
+      return tb - ta;
+    });
+
+  const recentAdded = liveTires.slice(0, RECENT_ADDED);
+  const recentSold = soldTires.slice(0, RECENT_SOLD_LIMIT);
+
+  // Per-shop in-stock count, fixed to the three named shops. Tires saved
+  // under other shop names (legacy, "TEST", Unassigned) aren't counted in
+  // the per-shop tiles, but they DO contribute to the grand total since
+  // they're still in stock somewhere.
+  const shopCounts = SHOP_NAMES.map((shop) => ({
+    shop,
+    count: liveTires.filter(
+      (t) => (t.shop || '').trim().toLowerCase() === shop.toLowerCase(),
+    ).length,
+  }));
+  const totalInStock = liveTires.length;
+
+  const goToInventory = (q?: string) => {
+    const trimmed = (q ?? '').trim();
+    if (trimmed) {
+      router.push(`/inventory?q=${encodeURIComponent(trimmed)}`);
+    } else {
+      router.push('/inventory');
     }
-    return Array.from(set);
-  })();
-  const shown = liveTires
-    .filter((t) => {
-      const friendly = t.tire_number != null ? `tire-${t.tire_number}` : '';
-      const text = `${friendly} ${t.brand} ${t.model} ${t.size} ${t.season} ${t.shop} ${t.location || ''}`.toLowerCase();
-      return text.includes(q.toLowerCase());
-    })
-    .filter((t) => (staleOnly ? isStale(t.created_at, t.status) : true))
-    .filter((t) =>
-      locationFilter === ANY_LOCATION
-        ? true
-        : (t.location || '') === locationFilter,
-    );
-  const recent = liveTires.slice(0, RECENT_COUNT);
+  };
 
   return (
     <main
@@ -75,16 +90,24 @@ export default function Home() {
         boxSizing: 'border-box',
       }}
     >
+      {/* ----- Header: compact, makes room for the chat below ----- */}
       <header
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 8,
-          marginBottom: 4,
+          marginBottom: 12,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            minWidth: 0,
+          }}
+        >
           <h1
             style={{
               fontSize: 22,
@@ -131,281 +154,341 @@ export default function Home() {
           Sign out
         </button>
       </header>
-      <p
-        style={{
-          color: COLORS.textMuted,
-          fontSize: 13,
-          margin: '0 0 14px',
-        }}
-      >
-        Use voice chat to add or look up tires, or browse below.
-      </p>
 
+      {/* ----- AI chat: the obvious primary thing when the app opens ----- */}
       <VoiceChat variant="embedded" />
 
-      {/*
-        Secondary nav — kept compact on purpose. The mic in VoiceChat above
-        is the primary control; these three are occasional-use shortcuts.
-        Smaller targets here also reduce mis-taps when reaching for the mic.
-      */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 8,
-          marginBottom: 22,
-          flexWrap: 'wrap',
-          alignItems: 'center',
-        }}
-      >
-        <a
-          href="/add"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            padding: '7px 14px',
-            background: COLORS.red,
-            color: '#fff',
-            border: 'none',
-            borderRadius: RADII.pill,
-            textDecoration: 'none',
-            fontWeight: 700,
-            fontSize: 13,
-            letterSpacing: 0.1,
-            lineHeight: 1.3,
-          }}
-        >
-          + Add tire
-        </a>
-        <a
-          href="/history"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            padding: '7px 14px',
-            background: 'transparent',
-            color: COLORS.textBody,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: RADII.pill,
-            textDecoration: 'none',
-            fontWeight: 600,
-            fontSize: 13,
-            letterSpacing: 0.1,
-            lineHeight: 1.3,
-          }}
-        >
-          📋 History
-        </a>
-        <a
-          href="/sold"
-          aria-label="Recently sold"
-          title="Recently sold"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            padding: '7px 14px',
-            background: 'transparent',
-            color: COLORS.textBody,
-            border: `1px solid ${COLORS.border}`,
-            borderRadius: RADII.pill,
-            textDecoration: 'none',
-            fontWeight: 600,
-            fontSize: 13,
-            letterSpacing: 0.1,
-            lineHeight: 1.3,
-          }}
-        >
-          🚚 Sold
-        </a>
-      </div>
-
-      {recent.length > 0 && (
-        <section style={{ marginBottom: 18 }}>
-          <h2
-            style={{
-              fontSize: 12,
-              color: COLORS.textMuted,
-              textTransform: 'uppercase',
-              letterSpacing: 0.5,
-              margin: '0 0 8px',
-              fontWeight: 700,
-            }}
-          >
-            Recently added
-          </h2>
-          {recent.map((t) => (
-            <TireCard
-              key={`r-${t.id}`}
-              tire={t}
-              thumbUrl={photosByTire.get(t.id)}
-            />
-          ))}
-        </section>
-      )}
-
-      <section>
-        <h2
-          style={{
-            fontSize: 12,
-            color: COLORS.textMuted,
-            textTransform: 'uppercase',
-            letterSpacing: 0.5,
-            margin: '0 0 8px',
-            fontWeight: 700,
-          }}
-        >
-          All tires
-        </h2>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search brand, size, season, location..."
-          style={{
-            width: '100%',
-            padding: '12px 14px',
-            fontSize: 16,
-            borderRadius: RADII.control,
-            border: `1px solid ${COLORS.borderStrong}`,
-            marginBottom: 10,
-            boxSizing: 'border-box',
-            background: COLORS.surface,
-            color: COLORS.ink,
-          }}
-        />
-        {/*
-          Location filter — small select that filters the inventory list to
-          a single physical location. "Any" shows everything. Options include
-          the named presets plus any custom locations actually present in
-          the current data.
-        */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            marginBottom: 12,
-            flexWrap: 'wrap',
-          }}
-        >
-          <label
-            htmlFor="location-filter"
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: 0.5,
-              textTransform: 'uppercase',
-              color: COLORS.textMuted,
-            }}
-          >
-            📍 Location
-          </label>
-          <select
-            id="location-filter"
-            value={locationFilter}
-            onChange={(e) => setLocationFilter(e.target.value)}
-            style={{
-              flex: '1 1 0',
-              minWidth: 140,
-              padding: '8px 12px',
-              fontSize: 14,
-              fontWeight: 600,
-              borderRadius: RADII.control,
-              border: `1px solid ${COLORS.borderStrong}`,
-              background: COLORS.surface,
-              color: COLORS.ink,
-              fontFamily: 'inherit',
-            }}
-          >
-            <option value={ANY_LOCATION}>Any location</option>
-            <option value="">— no location set —</option>
-            {locationOptions.map((loc) => (
-              <option key={loc} value={loc}>
-                {loc}
-              </option>
-            ))}
-          </select>
-          {locationFilter !== ANY_LOCATION && (
-            <button
-              type="button"
-              onClick={() => setLocationFilter(ANY_LOCATION)}
-              style={{
-                padding: '6px 12px',
-                fontSize: 12,
-                fontWeight: 600,
-                background: 'transparent',
-                color: COLORS.textMuted,
-                border: `1px solid ${COLORS.border}`,
-                borderRadius: RADII.pill,
-                cursor: 'pointer',
-                letterSpacing: 0.2,
-              }}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 8,
-            margin: '0 0 10px',
-            flexWrap: 'wrap',
-          }}
-        >
-          <p style={{ color: COLORS.textMuted, fontSize: 13, margin: 0 }}>
-            {shown.length} {shown.length === 1 ? 'tire' : 'tires'}
-            {staleOnly && ` (aging 90+ days)`}
-          </p>
-          {staleCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setStaleOnly((v) => !v)}
-              aria-pressed={staleOnly}
-              style={{
-                fontSize: 12,
-                padding: '5px 12px',
-                background: staleOnly ? STALE_STYLE.color : 'transparent',
-                color: staleOnly ? '#1a1a1a' : STALE_STYLE.color,
-                border: `1px solid ${STALE_STYLE.border}`,
-                borderRadius: RADII.pill,
-                cursor: 'pointer',
-                fontWeight: 700,
-                letterSpacing: 0.2,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {staleOnly
-                ? `Showing aging (${staleCount}) — clear`
-                : `⚠ ${staleCount} aging — view`}
-            </button>
-          )}
-        </div>
-        {shown.length === 0 && (
+      {/* ----- 3 most recent additions: compact, just enough to glance ----- */}
+      <section style={{ marginBottom: 22 }}>
+        <h2 style={sectionHeaderStyle}>Recently added</h2>
+        {recentAdded.length === 0 ? (
           <div
             style={{
               textAlign: 'center',
-              padding: '40px 20px',
+              padding: '20px 16px',
               color: COLORS.textMuted,
-              fontSize: 14,
+              fontSize: 13,
               border: `1px dashed ${COLORS.border}`,
               borderRadius: RADII.card,
               background: COLORS.surface,
             }}
           >
-            {tires.length === 0
-              ? 'No tires yet. Tap + Add tire to get started.'
-              : 'No matches. Try a different search.'}
+            No tires yet. Try voice or tap + Add tire.
           </div>
+        ) : (
+          recentAdded.map((t) => (
+            <TireCard
+              key={`r-${t.id}`}
+              tire={t}
+              thumbUrl={photosByTire.get(t.id)}
+            />
+          ))
         )}
-        {shown.map((t) => (
-          <TireCard key={t.id} tire={t} thumbUrl={photosByTire.get(t.id)} />
-        ))}
       </section>
 
+      {/* ----- Stock pulse: per-shop in-stock counts + grand total ----- */}
+      <section style={{ marginBottom: 22 }}>
+        <h2 style={sectionHeaderStyle}>Stock</h2>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(72px, 1fr))',
+            gap: 8,
+          }}
+        >
+          {shopCounts.map(({ shop, count }) => (
+            <div
+              key={shop}
+              style={{
+                padding: '10px 6px',
+                background: COLORS.surface,
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: RADII.card,
+                textAlign: 'center',
+                boxShadow: SHADOWS.card,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: COLORS.ink,
+                  letterSpacing: -0.4,
+                  lineHeight: 1,
+                }}
+              >
+                {count}
+              </div>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: COLORS.textMuted,
+                  letterSpacing: 0.4,
+                  textTransform: 'uppercase',
+                  marginTop: 6,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {shop}
+              </div>
+            </div>
+          ))}
+          {/* Grand total — visually accented so it reads as the headline number. */}
+          <div
+            style={{
+              padding: '10px 6px',
+              background: COLORS.redSoftBg,
+              border: `1px solid ${COLORS.red}`,
+              borderRadius: RADII.card,
+              textAlign: 'center',
+              boxShadow: SHADOWS.card,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 22,
+                fontWeight: 800,
+                color: COLORS.red,
+                letterSpacing: -0.4,
+                lineHeight: 1,
+              }}
+            >
+              {totalInStock}
+            </div>
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: COLORS.red,
+                letterSpacing: 0.4,
+                textTransform: 'uppercase',
+                marginTop: 6,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Total
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ----- Recently sold: minimal one-line-per-tire glance ----- */}
+      <section style={{ marginBottom: 22 }}>
+        <h2 style={sectionHeaderStyle}>Recently sold</h2>
+        {recentSold.length === 0 ? (
+          <p
+            style={{
+              color: COLORS.textSubtle,
+              fontSize: 12,
+              margin: 0,
+              fontStyle: 'italic',
+            }}
+          >
+            Nothing sold yet.
+          </p>
+        ) : (
+          <div
+            style={{
+              background: COLORS.surface,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: RADII.control,
+              overflow: 'hidden',
+            }}
+          >
+            {recentSold.map((t, i) => {
+              const brandLine =
+                [t.brand, t.model].filter(Boolean).join(' ') || '—';
+              return (
+                <a
+                  key={`s-${t.id}`}
+                  href={`/edit/${t.id}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 12px',
+                    textDecoration: 'none',
+                    color: COLORS.textMuted,
+                    fontSize: 12,
+                    borderBottom:
+                      i < recentSold.length - 1
+                        ? `1px solid ${COLORS.border}`
+                        : 'none',
+                  }}
+                >
+                  <span
+                    style={{
+                      color: COLORS.textBody,
+                      fontWeight: 700,
+                      fontFamily:
+                        'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                      flexShrink: 0,
+                    }}
+                  >
+                    tire-{t.tire_number ?? '?'}
+                  </span>
+                  <span style={{ color: COLORS.textSubtle, flexShrink: 0 }}>
+                    ·
+                  </span>
+                  <span
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={brandLine}
+                  >
+                    {brandLine}
+                  </span>
+                  {t.size && (
+                    <span
+                      style={{
+                        color: COLORS.textMuted,
+                        fontFamily:
+                          'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {t.size}
+                    </span>
+                  )}
+                </a>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* ----- Search: lands on /inventory mid-search ----- */}
+      <section style={{ marginBottom: 18 }}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            goToInventory(searchDraft);
+          }}
+        >
+          <input
+            type="search"
+            inputMode="search"
+            enterKeyHint="search"
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
+            placeholder="Search the full inventory…"
+            aria-label="Search the full inventory"
+            style={{
+              width: '100%',
+              padding: '12px 14px',
+              fontSize: 16,
+              borderRadius: RADII.control,
+              border: `1px solid ${COLORS.borderStrong}`,
+              boxSizing: 'border-box',
+              background: COLORS.surface,
+              color: COLORS.ink,
+              marginBottom: 10,
+            }}
+          />
+        </form>
+        {/*
+          Secondary nav — compact pills. Add tire keeps the red accent because
+          it's the most consequential action; the rest sit quietly.
+        */}
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            flexWrap: 'wrap',
+            alignItems: 'center',
+          }}
+        >
+          <a
+            href="/add"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '7px 14px',
+              background: COLORS.red,
+              color: '#fff',
+              border: 'none',
+              borderRadius: RADII.pill,
+              textDecoration: 'none',
+              fontWeight: 700,
+              fontSize: 13,
+              letterSpacing: 0.1,
+              lineHeight: 1.3,
+            }}
+          >
+            + Add tire
+          </a>
+          <a
+            href="/inventory"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '7px 14px',
+              background: 'transparent',
+              color: COLORS.textBody,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: RADII.pill,
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: 13,
+              letterSpacing: 0.1,
+              lineHeight: 1.3,
+            }}
+          >
+            📦 All tires
+          </a>
+          <a
+            href="/history"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '7px 14px',
+              background: 'transparent',
+              color: COLORS.textBody,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: RADII.pill,
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: 13,
+              letterSpacing: 0.1,
+              lineHeight: 1.3,
+            }}
+          >
+            📋 History
+          </a>
+          <a
+            href="/sold"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '7px 14px',
+              background: 'transparent',
+              color: COLORS.textBody,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: RADII.pill,
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: 13,
+              letterSpacing: 0.1,
+              lineHeight: 1.3,
+            }}
+          >
+            🚚 Sold
+          </a>
+        </div>
+      </section>
+
+      {/* ----- Footer ----- */}
       <div
         style={{
           textAlign: 'center',
