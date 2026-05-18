@@ -5,10 +5,7 @@ import { COLORS, RADII } from '../../lib/theme';
 import { loadFirstPhotosByTire } from '../../lib/photos';
 import { useCurrentShop } from '../../lib/useCurrentShop';
 import { isStale, STALE_STYLE } from '../../lib/tireStatus';
-import { TIRE_LOCATIONS } from '../../lib/locations';
 import { TireCard } from '../components/TireCard';
-
-const ANY_LOCATION = '__any__';
 
 /**
  * Sort options offered in the "Sort by" dropdown. Defined in one place so
@@ -106,9 +103,9 @@ function getSortComparator(sortBy: SortKey): (a: any, b: any) => number {
 /**
  * Full searchable inventory. Lives off the dashboard so the home page can
  * stay focused on the chat. Supports free-text search across brand / size /
- * season / shop / location / friendly id, plus a location dropdown, a
- * sort-by selector, and an aging (90+ days in stock) toggle. Sold tires
- * don't appear here — they live on /sold.
+ * season / shop / location / friendly id, a sort-by selector, and an aging
+ * (90+ days in stock) toggle. Sold tires don't appear here — they live on
+ * /sold.
  */
 export default function InventoryPage() {
   const [tires, setTires] = useState<any[]>([]);
@@ -117,7 +114,6 @@ export default function InventoryPage() {
     new Map(),
   );
   const [staleOnly, setStaleOnly] = useState(false);
-  const [locationFilter, setLocationFilter] = useState<string>(ANY_LOCATION);
   const [sortBy, setSortBy] = useState<SortKey>('newest');
   const currentShop = useCurrentShop();
 
@@ -143,19 +139,10 @@ export default function InventoryPage() {
   const liveTires = tires.filter((t) => t.status !== 'sold');
   const staleCount = liveTires.filter((t) => isStale(t.created_at, t.status))
     .length;
-  // Preset locations + any custom locations actually saved on a tire, so the
-  // dropdown stays useful when staff have typed in "Container A", etc.
-  const locationOptions = (() => {
-    const set = new Set<string>(TIRE_LOCATIONS);
-    for (const t of liveTires) {
-      if (t.location && typeof t.location === 'string' && t.location.trim()) {
-        set.add(t.location.trim());
-      }
-    }
-    return Array.from(set);
-  })();
-  // Search and toggles run first; the sort applies LAST so it always orders
-  // the visible subset the user is actually looking at.
+  // Search and the aging toggle run first; the sort applies LAST so it
+  // always orders the visible subset the user is actually looking at.
+  // Location is still part of the free-text haystack below — staff can
+  // type "warehouse" / "container A" / etc. to narrow by location.
   const shown = liveTires
     .filter((t) => {
       const friendly = t.tire_number != null ? `tire-${t.tire_number}` : '';
@@ -163,11 +150,6 @@ export default function InventoryPage() {
       return text.includes(q.toLowerCase());
     })
     .filter((t) => (staleOnly ? isStale(t.created_at, t.status) : true))
-    .filter((t) =>
-      locationFilter === ANY_LOCATION
-        ? true
-        : (t.location || '') === locationFilter,
-    )
     .sort(getSortComparator(sortBy));
 
   return (
@@ -253,77 +235,10 @@ export default function InventoryPage() {
           color: COLORS.ink,
         }}
       />
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          marginBottom: 12,
-          flexWrap: 'wrap',
-        }}
-      >
-        <label
-          htmlFor="location-filter"
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: 0.5,
-            textTransform: 'uppercase',
-            color: COLORS.textMuted,
-          }}
-        >
-          📍 Location
-        </label>
-        <select
-          id="location-filter"
-          value={locationFilter}
-          onChange={(e) => setLocationFilter(e.target.value)}
-          style={{
-            flex: '1 1 0',
-            minWidth: 140,
-            padding: '8px 12px',
-            fontSize: 14,
-            fontWeight: 600,
-            borderRadius: RADII.control,
-            border: `1px solid ${COLORS.borderStrong}`,
-            background: COLORS.surface,
-            color: COLORS.ink,
-            fontFamily: 'inherit',
-          }}
-        >
-          <option value={ANY_LOCATION}>Any location</option>
-          <option value="">— no location set —</option>
-          {locationOptions.map((loc) => (
-            <option key={loc} value={loc}>
-              {loc}
-            </option>
-          ))}
-        </select>
-        {locationFilter !== ANY_LOCATION && (
-          <button
-            type="button"
-            onClick={() => setLocationFilter(ANY_LOCATION)}
-            style={{
-              padding: '6px 12px',
-              fontSize: 12,
-              fontWeight: 600,
-              background: 'transparent',
-              color: COLORS.textMuted,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: RADII.pill,
-              cursor: 'pointer',
-              letterSpacing: 0.2,
-            }}
-          >
-            Clear
-          </button>
-        )}
-      </div>
       {/*
-        Sort row — visually paired with the Location row above. Compact,
-        wraps to a second line on narrow phones, never crowds the layout.
-        Sort runs AFTER the search/location/stale filters so it always
-        orders the user's visible subset.
+        Sort row. Compact, wraps to a second line on narrow phones, never
+        crowds the layout. Sort runs AFTER the search and stale-only filters
+        so it always orders the user's visible subset.
       */}
       <div
         style={{
