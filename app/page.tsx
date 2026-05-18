@@ -11,7 +11,6 @@ import VoiceChat from './components/VoiceChat';
 // Dashboard tuning: keep the surfaces around the chat short so the chat
 // itself is unmistakably the primary action when the app opens.
 const RECENT_ADDED = 3;
-const RECENT_SOLD_LIMIT = 5;
 const SHOP_NAMES = ['Mission', 'Aldergrove', 'Lethbridge'] as const;
 
 const sectionHeaderStyle: React.CSSProperties = {
@@ -39,19 +38,11 @@ export default function Home() {
     loadFirstPhotosByTire().then(setPhotosByTire);
   }, []);
 
-  // Live = not sold. Sold goes through its own sort (by mark-sold time,
-  // approximated by updated_at) for the "Recently sold" glance below.
+  // Live = not sold. Sold tires don't surface anywhere on the dashboard —
+  // they live on /sold (reached via the "Sold" nav button).
   const liveTires = tires.filter((t) => t.status !== 'sold');
-  const soldTires = tires
-    .filter((t) => t.status === 'sold')
-    .sort((a, b) => {
-      const tb = new Date(b.updated_at || b.created_at || 0).getTime();
-      const ta = new Date(a.updated_at || a.created_at || 0).getTime();
-      return tb - ta;
-    });
 
   const recentAdded = liveTires.slice(0, RECENT_ADDED);
-  const recentSold = soldTires.slice(0, RECENT_SOLD_LIMIT);
 
   // Per-shop in-stock count, fixed to the three named shops. Tires saved
   // under other shop names (legacy, "TEST", Unassigned) aren't counted in
@@ -261,97 +252,6 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </section>
-
-      {/* ----- Recently sold: minimal one-line-per-tire glance ----- */}
-      <section style={{ marginBottom: 22 }}>
-        <h2 style={sectionHeaderStyle}>Recently sold</h2>
-        {recentSold.length === 0 ? (
-          <p
-            style={{
-              color: COLORS.textSubtle,
-              fontSize: 12,
-              margin: 0,
-              fontStyle: 'italic',
-            }}
-          >
-            Nothing sold yet.
-          </p>
-        ) : (
-          <div
-            style={{
-              background: COLORS.surface,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: RADII.control,
-              overflow: 'hidden',
-            }}
-          >
-            {recentSold.map((t, i) => {
-              const brandLine =
-                [t.brand, t.model].filter(Boolean).join(' ') || '—';
-              return (
-                // Display-only — the dashboard's recently-sold glance is NOT
-                // clickable. Staff can drill into a sold tire from /sold.
-                <div
-                  key={`s-${t.id}`}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 12px',
-                    color: COLORS.textMuted,
-                    fontSize: 12,
-                    cursor: 'default',
-                    userSelect: 'text',
-                    borderBottom:
-                      i < recentSold.length - 1
-                        ? `1px solid ${COLORS.border}`
-                        : 'none',
-                  }}
-                >
-                  <span
-                    style={{
-                      color: COLORS.textBody,
-                      fontWeight: 700,
-                      fontFamily:
-                        'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-                      flexShrink: 0,
-                    }}
-                  >
-                    tire-{t.tire_number ?? '?'}
-                  </span>
-                  <span style={{ color: COLORS.textSubtle, flexShrink: 0 }}>
-                    ·
-                  </span>
-                  <span
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                    title={brandLine}
-                  >
-                    {brandLine}
-                  </span>
-                  {t.size && (
-                    <span
-                      style={{
-                        color: COLORS.textMuted,
-                        fontFamily:
-                          'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {t.size}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
       </section>
 
       {/*
