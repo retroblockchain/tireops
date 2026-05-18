@@ -11,11 +11,104 @@ import { TireCard } from '../components/TireCard';
 const ANY_LOCATION = '__any__';
 
 /**
+ * Sort options offered in the "Sort by" dropdown. Defined in one place so
+ * the <select> options and the comparator factory can't drift apart.
+ */
+const SORT_OPTIONS = [
+  { key: 'newest', label: 'Newest' },
+  { key: 'brand', label: 'Brand (A-Z)' },
+  { key: 'quantity', label: 'Quantity (high to low)' },
+  { key: 'price', label: 'Price (high to low)' },
+  { key: 'location', label: 'Location' },
+  { key: 'tire_id', label: 'Tire ID' },
+  { key: 'status', label: 'Status' },
+] as const;
+type SortKey = (typeof SORT_OPTIONS)[number]['key'];
+
+/**
+ * Build a comparator for the given sort key. Blank / unknown values sort
+ * to the END for every key — keeps a long tail of unfilled fields from
+ * elbowing useful rows down the list. Sort is applied AFTER all existing
+ * filters, so it always operates on the user's visible subset.
+ *
+ * Array.prototype.sort is stable in modern JS, so ties preserve the
+ * original (newest-first) fetch order — which is what you'd want anyway.
+ */
+function getSortComparator(sortBy: SortKey): (a: any, b: any) => number {
+  const text = (v: unknown): string =>
+    typeof v === 'string' ? v.trim().toLowerCase() : '';
+  const num = (v: unknown): number | null => {
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    if (typeof v === 'string' && v.trim() !== '') {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  };
+  const numDesc = (a: unknown, b: unknown) => {
+    const na = num(a);
+    const nb = num(b);
+    if (na == null && nb == null) return 0;
+    if (na == null) return 1;
+    if (nb == null) return -1;
+    return nb - na;
+  };
+  const textAsc = (a: unknown, b: unknown) => {
+    const ta = text(a);
+    const tb = text(b);
+    if (!ta && !tb) return 0;
+    if (!ta) return 1;
+    if (!tb) return -1;
+    return ta.localeCompare(tb);
+  };
+
+  switch (sortBy) {
+    case 'brand':
+      return (a, b) => textAsc(a.brand, b.brand);
+    case 'quantity':
+      return (a, b) => numDesc(a.quantity, b.quantity);
+    case 'price':
+      return (a, b) => numDesc(a.price, b.price);
+    case 'location':
+      return (a, b) => textAsc(a.location, b.location);
+    case 'tire_id':
+      // Ascending — natural order tire-1, tire-2, … so staff scan top-down.
+      return (a, b) => {
+        const na = num(a.tire_number);
+        const nb = num(b.tire_number);
+        if (na == null && nb == null) return 0;
+        if (na == null) return 1;
+        if (nb == null) return -1;
+        return na - nb;
+      };
+    case 'status': {
+      // Workflow order, not alphabetical: in-stock first, then reserved /
+      // pending. Anything else (legacy, unknown) sinks to the bottom.
+      const order = ['available', 'reserved', 'pending'];
+      return (a, b) => {
+        const ia = order.indexOf((a.status || 'available').toLowerCase());
+        const ib = order.indexOf((b.status || 'available').toLowerCase());
+        const ra = ia === -1 ? order.length : ia;
+        const rb = ib === -1 ? order.length : ib;
+        return ra - rb;
+      };
+    }
+    case 'newest':
+    default:
+      return (a, b) => {
+        const tb = new Date(b.created_at || 0).getTime();
+        const ta = new Date(a.created_at || 0).getTime();
+        return tb - ta;
+      };
+  }
+}
+
+/**
  * Full searchable inventory. Lives off the dashboard so the home page can
  * stay focused on the chat. Supports free-text search across brand / size /
- * season / shop / location / friendly id, plus a location dropdown and an
- * aging (90+ days in stock) toggle. Sold tires don't appear here — they
- * live on /sold.
+ * season / shop / location / friendly id, plus a location dropdown, a
+ * sort-by selector, and an aging (90+ days in stock) toggle. Sold tires
+ * don't appear here — they live on /sold.
  */
 export default function InventoryPage() {
   const [tires, setTires] = useState<any[]>([]);
@@ -25,6 +118,7 @@ export default function InventoryPage() {
   );
   const [staleOnly, setStaleOnly] = useState(false);
   const [locationFilter, setLocationFilter] = useState<string>(ANY_LOCATION);
+  const [sortBy, setSortBy] = useState<SortKey>('newest');
   const currentShop = useCurrentShop();
 
   useEffect(() => {
@@ -60,6 +154,8 @@ export default function InventoryPage() {
     }
     return Array.from(set);
   })();
+  // Search and toggles run first; the sort applies LAST so it always orders
+  // the visible subset the user is actually looking at.
   const shown = liveTires
     .filter((t) => {
       const friendly = t.tire_number != null ? `tire-${t.tire_number}` : '';
@@ -71,7 +167,8 @@ export default function InventoryPage() {
       locationFilter === ANY_LOCATION
         ? true
         : (t.location || '') === locationFilter,
-    );
+    )
+    .sort(getSortComparator(sortBy));
 
   return (
     <main
@@ -219,6 +316,76 @@ export default function InventoryPage() {
             }}
           >
             Clear
+          </button>
+        )}
+      </div>
+      {/*
+        Sort row — visually paired with the Location row above. Compact,
+        wraps to a second line on narrow phones, never crowds the layout.
+        Sort runs AFTER the search/location/stale filters so it always
+        orders the user's visible subset.
+      */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <label
+          htmlFor="sort-select"
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: 0.5,
+            textTransform: 'uppercase',
+            color: COLORS.textMuted,
+          }}
+        >
+          ↕ Sort by
+        </label>
+        <select
+          id="sort-select"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as SortKey)}
+          style={{
+            flex: '1 1 0',
+            minWidth: 140,
+            padding: '8px 12px',
+            fontSize: 14,
+            fontWeight: 600,
+            borderRadius: RADII.control,
+            border: `1px solid ${COLORS.borderStrong}`,
+            background: COLORS.surface,
+            color: COLORS.ink,
+            fontFamily: 'inherit',
+          }}
+        >
+          {SORT_OPTIONS.map((opt) => (
+            <option key={opt.key} value={opt.key}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        {sortBy !== 'newest' && (
+          <button
+            type="button"
+            onClick={() => setSortBy('newest')}
+            style={{
+              padding: '6px 12px',
+              fontSize: 12,
+              fontWeight: 600,
+              background: 'transparent',
+              color: COLORS.textMuted,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: RADII.pill,
+              cursor: 'pointer',
+              letterSpacing: 0.2,
+            }}
+          >
+            Reset
           </button>
         )}
       </div>
