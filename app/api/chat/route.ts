@@ -66,7 +66,14 @@ ${shopRule}
    b. Describe the change clearly: "I'll mark tire-25 (Michelin X-Ice 225/65R17) as SOLD. That will move it out of the main inventory list. Confirm?" Adapt the wording for reserved/pending/available — for SOLD, always mention it leaves the main list.
    c. ONLY after the user replies with a clear yes in a SEPARATE turn may you call update_tire with the status field.
    d. If the user is unclear or says no, do NOT change the status. Ask again or move on.
-   e. SOLD is the most consequential status — be sure the user wants to retire that exact tire before confirming.`;
+   e. SOLD is the most consequential status — be sure the user wants to retire that exact tire before confirming.
+13. ATTACHING A PHOTO TO AN EXISTING TIRE. When a photo is uploaded AND the user asks to add it to a tire ALREADY in inventory (e.g. "add this photo to tire-25", "this is for the Michelin we have", "attach this to that one we just looked at"):
+   a. Identify the specific tire — either by the friendly id the user said, or via search_tires if you need to look it up.
+   b. Confirm with the user, naming the tire: "Attach this photo to tire-25 (Michelin X-Ice 225/65R17)? Say yes to confirm."
+   c. ONLY after the user replies with a clear yes in a SEPARATE turn may you call attach_photo_to_tire with the tire's id and the photo_url from the system note.
+   d. This ADDS the photo to the tire's gallery — it does not replace existing photos. Tires can have many photos.
+   e. Distinguish from rule 9.f: if the user wants to CREATE a new tire from the photo, use add_tire with photo_url instead. Ask if you're unsure.
+   f. Don't paste the URL back to the user — they don't need to see it.`;
 }
 
 const TOOLS = [
@@ -143,6 +150,19 @@ const TOOLS = [
         id: { type: 'string', description: 'The tire id — either the uuid or the friendly id like "tire-25". Obtain it from search_tires.' },
       },
       required: ['id'],
+    },
+  },
+  {
+    name: 'attach_photo_to_tire',
+    description:
+      'Attach a previously-uploaded photo to an EXISTING tire. Use this when the user uploads a photo and asks to add it to a tire already in inventory (e.g. "add this photo to tire-25"). The photo URL comes from the system note in the user message that delivered the upload. ALWAYS confirm with the user which tire before calling this tool. The photo is added to the tire\'s gallery — it does not replace existing photos.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'The tire id — either the uuid or the friendly id like "tire-25".' },
+        photo_url: { type: 'string', description: 'The photo URL from the system note (must be from the tire-photos storage bucket).' },
+      },
+      required: ['id', 'photo_url'],
     },
   },
   {
@@ -316,6 +336,65 @@ async function runDeleteTire(
   return { deleted: data };
 }
 
+/**
+ * Attach a previously-uploaded photo to an EXISTING tire. The client has
+ * already pushed the image into the tire-photos bucket and gave us its
+ * public URL via the system-note text block on the user message; this tool
+ * just creates the tire_photos row that links the two together.
+ */
+async function runAttachPhotoToTire(
+  input: ToolInput,
+  userEmail: string | null,
+  source: ActivitySource,
+  employeeName: string | null,
+) {
+  const rawId = input.id;
+  if (typeof rawId !== 'string') return { error: 'id is required' };
+  const id = await resolveTireId(rawId);
+  if (!id) return { error: `tire not found: "${rawId}"` };
+
+  const photoUrl =
+    typeof input.photo_url === 'string' ? input.photo_url.trim() : '';
+  if (!photoUrl) return { error: 'photo_url is required' };
+  // Light validation: the URL must look like a Supabase Storage URL pointing
+  // at the tire-photos bucket. Catches model hallucinations like "tire-25.jpg".
+  if (!photoUrl.startsWith('http') || !photoUrl.includes('/tire-photos/')) {
+    return {
+      error:
+        'invalid photo_url — must be a public URL from the tire-photos storage bucket (provided in the system note)',
+    };
+  }
+
+  // Fetch the tire so we can return it (and use it for the activity log).
+  const { data: tire, error: fetchError } = await supabase
+    .from('tires')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (fetchError || !tire) {
+    return { error: `tire not found after resolve: "${rawId}"` };
+  }
+
+  const { data: photo, error: insertError } = await supabase
+    .from('tire_photos')
+    .insert({ tire_id: id, url: photoUrl })
+    .select()
+    .single();
+  if (insertError) return { error: insertError.message };
+
+  // Treat photo attachment as an edit for activity logging purposes — same
+  // shape as other tire updates.
+  await insertActivityLog({
+    action: 'edited',
+    tire,
+    source,
+    userEmail,
+    employeeName,
+  });
+
+  return { attached: photo, tire };
+}
+
 async function runSetEmployeeName(input: ToolInput) {
   const name = typeof input.name === 'string' ? input.name.trim() : '';
   if (!name) return { error: 'name is required' };
@@ -359,6 +438,7 @@ async function runTool(
     if (name === 'add_tire') return await runAddTire(input, currentShop, userEmail, source, employeeName);
     if (name === 'update_tire') return await runUpdateTire(input, userEmail, source, employeeName);
     if (name === 'delete_tire') return await runDeleteTire(input, userEmail, source, employeeName);
+    if (name === 'attach_photo_to_tire') return await runAttachPhotoToTire(input, userEmail, source, employeeName);
     if (name === 'report_bug') return await runReportBug(input, currentShop, userEmail);
     if (name === 'set_employee_name') return await runSetEmployeeName(input);
     return { error: `unknown tool: ${name}` };
@@ -468,7 +548,10 @@ async function buildAttachmentBlocks(att: AttachmentInput): Promise<ContentBlock
       });
       blocks.push({
         type: 'text',
-        text: `[System note: This image was uploaded and stored at "${photoUrl}". If you add a tire FROM this image (single-tire flow, not a bulk spreadsheet), pass photo_url="${photoUrl}" to add_tire so the photo is saved as that tire's attached photo.]`,
+        text: `[System note: This image was uploaded and stored at "${photoUrl}". When the user wants to use this photo, two paths:
+ - ADDING A NEW TIRE from this image: include photo_url="${photoUrl}" in your add_tire call.
+ - ATTACHING TO AN EXISTING TIRE (e.g. "add this to tire-25", "this is for the Michelin"): use the attach_photo_to_tire tool with the tire's id and photo_url="${photoUrl}".
+Always confirm the specific tire with the user before either action. Do not repeat the URL back to the user — it's just internal context.]`,
       });
     } else if (att.base64) {
       // Fallback when there's no URL — older clients or unusual flows.
