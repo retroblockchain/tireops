@@ -6,10 +6,12 @@ import { COLORS, RADII } from '../lib/theme';
 import { loadFirstPhotosByTire } from '../lib/photos';
 import { useCurrentShop } from '../lib/useCurrentShop';
 import { isStale, STALE_STYLE } from '../lib/tireStatus';
+import { TIRE_LOCATIONS } from '../lib/locations';
 import { TireCard } from './components/TireCard';
 import VoiceChat from './components/VoiceChat';
 
 const RECENT_COUNT = 8;
+const ANY_LOCATION = '__any__';
 
 export default function Home() {
   const [tires, setTires] = useState<any[]>([]);
@@ -18,6 +20,7 @@ export default function Home() {
     new Map(),
   );
   const [staleOnly, setStaleOnly] = useState(false);
+  const [locationFilter, setLocationFilter] = useState<string>(ANY_LOCATION);
   const currentShop = useCurrentShop();
 
   useEffect(() => {
@@ -33,14 +36,30 @@ export default function Home() {
   const liveTires = tires.filter((t) => t.status !== 'sold');
   const staleCount = liveTires.filter((t) => isStale(t.created_at, t.status))
     .length;
+  // Options shown in the location filter dropdown — the preset list plus
+  // any extra custom locations staff have actually saved on a tire. This
+  // keeps the filter useful even when someone types "Container A" by hand.
+  const locationOptions = (() => {
+    const set = new Set<string>(TIRE_LOCATIONS);
+    for (const t of liveTires) {
+      if (t.location && typeof t.location === 'string' && t.location.trim()) {
+        set.add(t.location.trim());
+      }
+    }
+    return Array.from(set);
+  })();
   const shown = liveTires
     .filter((t) => {
       const friendly = t.tire_number != null ? `tire-${t.tire_number}` : '';
-      const text =
-        `${friendly} ${t.brand} ${t.model} ${t.size} ${t.season} ${t.shop}`.toLowerCase();
+      const text = `${friendly} ${t.brand} ${t.model} ${t.size} ${t.season} ${t.shop} ${t.location || ''}`.toLowerCase();
       return text.includes(q.toLowerCase());
     })
-    .filter((t) => (staleOnly ? isStale(t.created_at, t.status) : true));
+    .filter((t) => (staleOnly ? isStale(t.created_at, t.status) : true))
+    .filter((t) =>
+      locationFilter === ANY_LOCATION
+        ? true
+        : (t.location || '') === locationFilter,
+    );
   const recent = liveTires.slice(0, RECENT_COUNT);
 
   return (
@@ -242,19 +261,91 @@ export default function Home() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search brand, size, season..."
+          placeholder="Search brand, size, season, location..."
           style={{
             width: '100%',
             padding: '12px 14px',
             fontSize: 16,
             borderRadius: RADII.control,
             border: `1px solid ${COLORS.borderStrong}`,
-            marginBottom: 12,
+            marginBottom: 10,
             boxSizing: 'border-box',
             background: COLORS.surface,
             color: COLORS.ink,
           }}
         />
+        {/*
+          Location filter — small select that filters the inventory list to
+          a single physical location. "Any" shows everything. Options include
+          the named presets plus any custom locations actually present in
+          the current data.
+        */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <label
+            htmlFor="location-filter"
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              textTransform: 'uppercase',
+              color: COLORS.textMuted,
+            }}
+          >
+            📍 Location
+          </label>
+          <select
+            id="location-filter"
+            value={locationFilter}
+            onChange={(e) => setLocationFilter(e.target.value)}
+            style={{
+              flex: '1 1 0',
+              minWidth: 140,
+              padding: '8px 12px',
+              fontSize: 14,
+              fontWeight: 600,
+              borderRadius: RADII.control,
+              border: `1px solid ${COLORS.borderStrong}`,
+              background: COLORS.surface,
+              color: COLORS.ink,
+              fontFamily: 'inherit',
+            }}
+          >
+            <option value={ANY_LOCATION}>Any location</option>
+            <option value="">— no location set —</option>
+            {locationOptions.map((loc) => (
+              <option key={loc} value={loc}>
+                {loc}
+              </option>
+            ))}
+          </select>
+          {locationFilter !== ANY_LOCATION && (
+            <button
+              type="button"
+              onClick={() => setLocationFilter(ANY_LOCATION)}
+              style={{
+                padding: '6px 12px',
+                fontSize: 12,
+                fontWeight: 600,
+                background: 'transparent',
+                color: COLORS.textMuted,
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: RADII.pill,
+                cursor: 'pointer',
+                letterSpacing: 0.2,
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
         <div
           style={{
             display: 'flex',

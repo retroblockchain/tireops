@@ -7,6 +7,8 @@ import { uploadTirePhoto } from '../../lib/photos';
 import { useCurrentShop } from '../../lib/useCurrentShop';
 import { UNASSIGNED_SHOP } from '../../lib/shops';
 import { logActivity } from '../../lib/activity';
+import { LocationInput } from '../components/LocationInput';
+import { canonicalizeLocation } from '../../lib/locations';
 
 type Field = {
   key: string;
@@ -14,8 +16,11 @@ type Field = {
   placeholder?: string;
   type?: string;
 };
+// `location` is rendered with a dedicated picker — see the map below.
+// Keeping it in this array preserves the form order.
 const FIELDS: Field[] = [
   { key: 'shop', label: 'Shop', placeholder: 'e.g. Main' },
+  { key: 'location', label: 'Location' },
   { key: 'brand', label: 'Brand', placeholder: 'e.g. Michelin' },
   { key: 'model', label: 'Model', placeholder: 'e.g. X-Ice Snow' },
   { key: 'size', label: 'Size', placeholder: 'e.g. 225/65R17' },
@@ -77,9 +82,17 @@ export default function AddTire() {
     setSaving(true);
     setError(null);
     try {
+      // Canonicalize location so "warehouse"/"WAREHOUSE" save as "Warehouse"
+      // and an empty custom-text box clears the column instead of saving "".
+      const cleanedLocation = canonicalizeLocation(tire.location);
+      const payload = {
+        ...tire,
+        shop: tire.shop || 'TEST',
+        location: cleanedLocation || null,
+      };
       const { data: inserted, error: insertError } = await supabase
         .from('tires')
-        .insert({ ...tire, shop: tire.shop || 'TEST' })
+        .insert(payload)
         .select()
         .single();
       if (insertError || !inserted) {
@@ -168,36 +181,45 @@ export default function AddTire() {
 
       {FIELDS.map((f) => (
         <div key={f.key} style={{ marginBottom: 14 }}>
-          <label
-            htmlFor={f.key}
-            style={{
-              display: 'block',
-              fontSize: 13,
-              color: COLORS.textBody,
-              fontWeight: 600,
-              marginBottom: 6,
-              letterSpacing: 0.1,
-            }}
-          >
-            {f.label}
-          </label>
-          <input
-            id={f.key}
-            type={f.type ?? 'text'}
-            value={tire[f.key] ?? ''}
-            onChange={(e) => setTire({ ...tire, [f.key]: e.target.value })}
-            placeholder={f.placeholder}
-            style={{
-              width: '100%',
-              padding: '12px 14px',
-              fontSize: 16,
-              borderRadius: RADII.control,
-              border: `1px solid ${COLORS.borderStrong}`,
-              background: COLORS.surface,
-              color: COLORS.ink,
-              boxSizing: 'border-box',
-            }}
-          />
+          {f.key === 'location' ? (
+            <LocationInput
+              value={tire.location}
+              onChange={(v) => setTire({ ...tire, location: v })}
+            />
+          ) : (
+            <>
+              <label
+                htmlFor={f.key}
+                style={{
+                  display: 'block',
+                  fontSize: 13,
+                  color: COLORS.textBody,
+                  fontWeight: 600,
+                  marginBottom: 6,
+                  letterSpacing: 0.1,
+                }}
+              >
+                {f.label}
+              </label>
+              <input
+                id={f.key}
+                type={f.type ?? 'text'}
+                value={tire[f.key] ?? ''}
+                onChange={(e) => setTire({ ...tire, [f.key]: e.target.value })}
+                placeholder={f.placeholder}
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  fontSize: 16,
+                  borderRadius: RADII.control,
+                  border: `1px solid ${COLORS.borderStrong}`,
+                  background: COLORS.surface,
+                  color: COLORS.ink,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </>
+          )}
         </div>
       ))}
 

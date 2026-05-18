@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { ActivitySource, insertActivityLog } from '../../../lib/activity';
 import { parseSpreadsheet } from '../../../lib/parseSpreadsheet';
+import { TIRE_LOCATIONS, canonicalizeLocation } from '../../../lib/locations';
 
 export const runtime = 'nodejs';
 
@@ -28,6 +29,7 @@ The 'tires' table has these columns:
 - id (uuid, auto), tire_number (bigint, auto — shown to users as "tire-N", e.g. "tire-25"), shop (text), brand (text), model (text), size (text, e.g. "225/65R17"),
   season (text: "summer" | "winter" | "all-season"), condition (text: "new" | "used"),
   tread_pct (number 0-100), quantity (number), price (number), notes (text),
+  location (text — where the tire is physically stored. Recognized presets are "${TIRE_LOCATIONS.join('", "')}". Any custom string is also valid — e.g. "Container A", "Bay 3"),
   status (text: "available" | "reserved" | "pending" | "sold" — defaults to "available". SOLD tires are removed from the main inventory list and live in a separate "Recently sold" view),
   is_complete (bool, auto), created_at, updated_at.
 
@@ -40,6 +42,7 @@ INTERPRETING SHOP-FLOOR SPEECH:
 - Tread depth: when staff say "X thirty-seconds" they mean X/32nds tread remaining — treat 10/32 as full new tread, so "eight thirty-seconds" ≈ tread_pct 80, "five thirty-seconds" ≈ 50, "two thirty-seconds" ≈ 20 (legal minimum). When they say "percent" or "%", use the number directly. "Half tread" → 50. "Low tread" / "almost bald" → 20 or less.
 - Brand names — be generous interpreting them (Whisper sometimes garbles proper nouns). "mishelin" / "mick-uh-lin" → Michelin. "bridgestown" → Bridgestone. "conti" → Continental. "perrelli" / "puh-relli" → Pirelli. "yoko" → Yokohama. "BFG" → BFGoodrich. Save the canonical brand spelling.
 - Seasons: "snow tires" / "winter" → "winter". "summer" / "performance" → "summer". "all season" / "all-season" / "all weather" / "year-round" → "all-season".
+- Storage location: "in the warehouse" / "out back in the warehouse" → location "Warehouse". "on the showroom floor" → "Showroom". "in the container" / "in the sea-can" → "Container". "out in the yard" → "Yard". For other phrasings ("in container A", "bay 3", "mezzanine"), save the location string the user said. The recognized presets are "${TIRE_LOCATIONS.join('", "')}" — match the user's wording to a preset when it's clearly the same place, otherwise save the custom phrase verbatim (capitalized normally).
 - Money: "eighty bucks" / "eighty dollars" / "eighty" (in price context) → 80.
 - Out-of-order details: staff routinely interleave fields ("four winter Bridgestones, two twenty-five sixty-five seventeen, eighty bucks each, eight thirty-seconds"). Collect everything before asking follow-ups.
 - Self-corrections: if they back-track ("two twenty-five — wait, two thirty-five sixty-five seventeen"), use the corrected value, not the original.
@@ -91,7 +94,14 @@ ${shopRule}
    c. ONLY after the user replies with a clear yes in a SEPARATE turn may you call attach_photo_to_tire with the tire's id and EITHER photo_url="<url>" (single image) OR photo_urls=["<url1>","<url2>",...] (multiple images, taken from all the system notes in the message that delivered them).
    d. This ADDS photos to the tire's gallery — it does not replace existing photos. Tires can have many photos.
    e. Distinguish from rule 9.f: if the user wants to CREATE a new tire from the photo(s), use add_tire with photo_url / photo_urls instead. Ask if you're unsure.
-   f. Don't paste URLs back to the user — they don't need to see them.`;
+   f. Don't paste URLs back to the user — they don't need to see them.
+14. CHANGING LOCATION REQUIRES CONFIRMATION. When the user asks you to set or change a tire's location (e.g. "move tire-25 to the warehouse", "set the Michelins to Container A", "they're in the yard now"):
+   a. Find the tire if needed (via search_tires).
+   b. Confirm what you're about to do, naming the tire: "Set tire-25 (Michelin X-Ice 225/65R17) location to Warehouse? Say yes to confirm." Use the preset name if the user's phrase matches one ("${TIRE_LOCATIONS.join('", "')}"); otherwise use their exact wording.
+   c. ONLY after a clear yes in a SEPARATE turn may you call update_tire with the location field.
+   d. NEVER call update_tire to change location in the same turn you propose the change.
+   e. When ADDING a new tire (rule 3), no separate confirmation is needed for location — just save it with the rest of the tire fields. This rule only governs CHANGING the location of an existing tire.
+15. SEARCHING BY LOCATION. When the user asks "what's in the warehouse" / "show me yard tires" / "anything in container A", call search_tires with the \`location\` filter set to the user's location phrase. The filter is a partial case-insensitive match, so a preset name is fine even when staff used a custom variation.`;
 }
 
 const TOOLS = [
@@ -102,13 +112,14 @@ const TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Free-text fragment to match against brand, model, size, season, shop, notes, or friendly id.' },
+        query: { type: 'string', description: 'Free-text fragment to match against brand, model, size, season, shop, location, notes, or friendly id.' },
         brand: { type: 'string' },
         model: { type: 'string' },
         size: { type: 'string', description: 'e.g. "225/65R17"' },
         season: { type: 'string', description: '"summer", "winter", or "all-season"' },
         condition: { type: 'string', description: '"new" or "used"' },
         shop: { type: 'string' },
+        location: { type: 'string', description: 'Physical storage location — recognized presets are "Showroom", "Warehouse", "Container", "Yard", but any custom string also works. Partial case-insensitive match.' },
         tire_number: { type: 'number', description: 'Exact match on tire_number — e.g. 25 finds the tire shown to users as "tire-25".' },
         friendly_id: { type: 'string', description: 'Like "tire-25"; the numeric part is extracted and matched against tire_number.' },
         limit: { type: 'number', description: 'Max rows (default 20)' },
@@ -123,6 +134,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         shop: { type: 'string' },
+        location: { type: 'string', description: 'Physical storage location. Use one of the recognized presets ("Showroom", "Warehouse", "Container", "Yard") when the user\'s phrase matches; otherwise save their custom phrase verbatim.' },
         brand: { type: 'string' },
         model: { type: 'string' },
         size: { type: 'string' },
@@ -143,12 +155,13 @@ const TOOLS = [
   },
   {
     name: 'update_tire',
-    description: 'Update an existing tire. Provide only the fields to change. The id accepts EITHER the internal uuid OR a friendly id like "tire-25". For status changes, only call this AFTER the user has explicitly confirmed (see rule 12).',
+    description: 'Update an existing tire. Provide only the fields to change. The id accepts EITHER the internal uuid OR a friendly id like "tire-25". For status changes, only call this AFTER the user has explicitly confirmed (see rule 12). For location changes, only call this AFTER the user has explicitly confirmed (see rule 14).',
     input_schema: {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'The tire id — either the uuid or the friendly id like "tire-25".' },
         shop: { type: 'string' },
+        location: { type: 'string', description: 'Physical storage location — recognized presets are "Showroom", "Warehouse", "Container", "Yard", but any custom string also works. Pass an empty string to clear the location.' },
         brand: { type: 'string' },
         model: { type: 'string' },
         size: { type: 'string' },
@@ -254,7 +267,15 @@ async function resolveTireId(rawId: string): Promise<string | null> {
 
 async function runSearchTires(input: ToolInput) {
   let q = supabase.from('tires').select('*');
-  const eqLikeFields = ['brand', 'model', 'size', 'season', 'condition', 'shop'] as const;
+  const eqLikeFields = [
+    'brand',
+    'model',
+    'size',
+    'season',
+    'condition',
+    'shop',
+    'location',
+  ] as const;
   for (const f of eqLikeFields) {
     const v = input[f];
     if (typeof v === 'string' && v.trim()) q = q.ilike(f, `%${v.trim()}%`);
@@ -282,7 +303,17 @@ async function runSearchTires(input: ToolInput) {
   if (free) {
     rows = rows.filter((r) => {
       const friendly = r.tire_number != null ? `tire-${r.tire_number}` : '';
-      const hay = [friendly, r.brand, r.model, r.size, r.season, r.shop, r.notes, r.condition]
+      const hay = [
+        friendly,
+        r.brand,
+        r.model,
+        r.size,
+        r.season,
+        r.shop,
+        r.location,
+        r.notes,
+        r.condition,
+      ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
@@ -329,6 +360,12 @@ async function runAddTire(
   if (!row.shop && currentShop && currentShop !== UNASSIGNED_SHOP) {
     row.shop = currentShop;
   }
+  // Location: canonicalize so "warehouse" → "Warehouse"; non-preset phrases
+  // are stored verbatim. An empty/whitespace value leaves the column NULL.
+  if (typeof input.location === 'string') {
+    const canon = canonicalizeLocation(input.location);
+    if (canon) row.location = canon;
+  }
   const photoUrls = collectPhotoUrls(input);
 
   const missing = RECOMMENDED_FIELDS.filter((f) => row[f] === undefined);
@@ -369,6 +406,13 @@ async function runUpdateTire(
   const patch: Record<string, unknown> = {};
   for (const f of ['shop', 'brand', 'model', 'size', 'season', 'condition', 'tread_pct', 'quantity', 'price', 'notes', 'status']) {
     if (input[f] !== undefined && input[f] !== null && input[f] !== '') patch[f] = input[f];
+  }
+  // Location supports clearing — explicit "" from the AI means "remove the
+  // location"; we send NULL. Non-empty values are canonicalized to preset
+  // capitalization when applicable.
+  if (typeof input.location === 'string') {
+    const canon = canonicalizeLocation(input.location);
+    patch.location = canon ? canon : null;
   }
   if (Object.keys(patch).length === 0) return { error: 'no fields to update' };
   const { data, error } = await supabase.from('tires').update(patch).eq('id', id).select().single();

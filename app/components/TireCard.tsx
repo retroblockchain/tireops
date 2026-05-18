@@ -11,6 +11,7 @@ type Tire = {
   id: string;
   tire_number?: number | string | null;
   shop?: string | null;
+  location?: string | null;
   size?: string | null;
   brand?: string | null;
   model?: string | null;
@@ -198,6 +199,21 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
                 }}
               >
                 {t.season}
+              </span>
+            )}
+            {t.location && (
+              <span
+                title={`Stored: ${t.location}`}
+                style={{
+                  ...PILL_BASE,
+                  letterSpacing: 0.2,
+                  background: 'transparent',
+                  color: COLORS.textBody,
+                  border: `1px dashed ${COLORS.borderStrong}`,
+                  fontWeight: 600,
+                }}
+              >
+                📍 {t.location}
               </span>
             )}
             {t.condition && (
