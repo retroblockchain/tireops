@@ -847,6 +847,7 @@ export default function VoiceChat({
             fontSize: 12,
             margin: '0 0 10px',
             textAlign: 'center',
+            flexShrink: 0,
           }}
         >
           Tap the mic, speak naturally, then tap stop. The AI will confirm
@@ -856,6 +857,9 @@ export default function VoiceChat({
 
       <label
         style={{
+          // flexShrink:0 — fixed-height row, never gives up space to the
+          // chat scroll (only the chat is allowed to shrink).
+          flexShrink: 0,
           display: 'inline-flex',
           alignItems: 'center',
           gap: 6,
@@ -922,6 +926,7 @@ export default function VoiceChat({
           alignItems: 'center',
           gap: 8,
           marginBottom: recording || transcribing ? 6 : 0,
+          flexShrink: 0,
         }}
       >
         {recording && (
@@ -991,9 +996,12 @@ export default function VoiceChat({
       <div
         ref={scrollRef}
         style={{
-          ...(variant === 'page'
-            ? { flex: 1 }
-            : { flex: 1, minHeight: 120 }),
+          // flex:1 lets the scroll absorb spare panel height. minHeight:60
+          // is small enough that when the attachment strip / recording pill
+          // / speaking pill all appear at once, the chat shrinks instead of
+          // pushing the mic and Send controls off the bottom of the screen.
+          flex: 1,
+          minHeight: 60,
           overflowY: 'auto',
           border: `1px solid ${COLORS.border}`,
           borderRadius: RADII.card,
@@ -1197,6 +1205,7 @@ export default function VoiceChat({
             display: 'flex',
             justifyContent: 'flex-end',
             marginBottom: 8,
+            flexShrink: 0,
           }}
         >
           <button
@@ -1225,81 +1234,28 @@ export default function VoiceChat({
 
       {attachedFiles.length > 0 && (
         <div
+          // Compact, single-row attachment strip. The container has a fixed
+          // height and the inner strip scrolls horizontally for many files —
+          // so the mic + Send below NEVER get pushed off-screen, no matter
+          // how many photos are attached.
           style={{
-            marginBottom: 10,
-            padding: 10,
+            flexShrink: 0,
+            marginBottom: 8,
+            padding: 6,
             background: COLORS.surfaceSoft,
             border: `1px solid ${COLORS.border}`,
-            borderRadius: RADII.card,
+            borderRadius: RADII.control,
           }}
         >
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 8,
-              marginBottom: 8,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                letterSpacing: 0.4,
-                textTransform: 'uppercase',
-                color: COLORS.textMuted,
-              }}
-            >
-              {attachedFiles.length}{' '}
-              {attachedFiles.length === 1 ? 'attachment' : 'attachments'}
-            </span>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={sending}
-                style={{
-                  padding: '4px 10px',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  background: 'transparent',
-                  color: COLORS.red,
-                  border: `1px solid ${COLORS.red}`,
-                  borderRadius: RADII.pill,
-                  cursor: sending ? 'not-allowed' : 'pointer',
-                  letterSpacing: 0.2,
-                }}
-              >
-                + Add more
-              </button>
-              {attachedFiles.length > 1 && (
-                <button
-                  type="button"
-                  onClick={clearAttachedFiles}
-                  disabled={sending}
-                  style={{
-                    padding: '4px 10px',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    background: 'transparent',
-                    color: COLORS.textMuted,
-                    border: `1px solid ${COLORS.border}`,
-                    borderRadius: RADII.pill,
-                    cursor: sending ? 'not-allowed' : 'pointer',
-                    letterSpacing: 0.2,
-                  }}
-                >
-                  Clear all
-                </button>
-              )}
-            </div>
-          </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))',
-              gap: 8,
+              gap: 6,
+              overflowX: 'auto',
+              overflowY: 'hidden',
+              // Touch-momentum on iOS; harmless elsewhere.
+              WebkitOverflowScrolling: 'touch',
             }}
           >
             {attachedFiles.map((file, i) => {
@@ -1310,7 +1266,9 @@ export default function VoiceChat({
                   key={`${file.name}-${i}`}
                   style={{
                     position: 'relative',
-                    paddingTop: '100%',
+                    flexShrink: 0,
+                    width: 56,
+                    height: 56,
                     borderRadius: RADII.control,
                     overflow: 'hidden',
                     background: COLORS.surface,
@@ -1324,35 +1282,34 @@ export default function VoiceChat({
                       src={preview}
                       alt=""
                       style={{
-                        position: 'absolute',
-                        inset: 0,
                         width: '100%',
                         height: '100%',
                         objectFit: 'cover',
+                        display: 'block',
                       }}
                     />
                   ) : (
                     <div
                       style={{
-                        position: 'absolute',
-                        inset: 0,
+                        width: '100%',
+                        height: '100%',
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        padding: 4,
+                        padding: 3,
                         color: COLORS.textBody,
                         textAlign: 'center',
-                        fontSize: 10,
+                        fontSize: 9,
                         fontWeight: 600,
-                        lineHeight: 1.2,
+                        lineHeight: 1.15,
                         wordBreak: 'break-word',
                       }}
                     >
-                      <span style={{ fontSize: 22, lineHeight: 1 }}>📎</span>
+                      <span style={{ fontSize: 18, lineHeight: 1 }}>📎</span>
                       <span
                         style={{
-                          marginTop: 4,
+                          marginTop: 2,
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           display: '-webkit-box',
@@ -1371,21 +1328,22 @@ export default function VoiceChat({
                     disabled={sending}
                     style={{
                       position: 'absolute',
-                      top: 4,
-                      right: 4,
-                      width: 22,
-                      height: 22,
+                      top: 2,
+                      right: 2,
+                      width: 18,
+                      height: 18,
                       borderRadius: '50%',
                       border: 'none',
-                      background: 'rgba(0,0,0,0.72)',
+                      background: 'rgba(0,0,0,0.78)',
                       color: '#fff',
-                      fontSize: 13,
+                      fontSize: 11,
                       fontWeight: 700,
                       cursor: sending ? 'not-allowed' : 'pointer',
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       lineHeight: 1,
+                      padding: 0,
                     }}
                   >
                     ×
@@ -1393,6 +1351,34 @@ export default function VoiceChat({
                 </div>
               );
             })}
+            {attachedFiles.length > 1 && (
+              <button
+                type="button"
+                onClick={clearAttachedFiles}
+                disabled={sending}
+                aria-label="Remove all attachments"
+                title="Remove all"
+                style={{
+                  flexShrink: 0,
+                  width: 56,
+                  height: 56,
+                  borderRadius: RADII.control,
+                  border: `1px dashed ${COLORS.border}`,
+                  background: 'transparent',
+                  color: COLORS.textMuted,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: 0.4,
+                  textTransform: 'uppercase',
+                  cursor: sending ? 'not-allowed' : 'pointer',
+                  lineHeight: 1.1,
+                }}
+              >
+                Clear
+                <br />
+                all
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1414,6 +1400,10 @@ export default function VoiceChat({
           // Pad the mic row so the big circular button has breathing room
           // from the chat scroll above and from anything below the panel.
           paddingTop: 4,
+          // flexShrink:0 keeps the mic + Send row anchored at the bottom
+          // even when the chat scroll, attachment strip, and pills are all
+          // competing for vertical space.
+          flexShrink: 0,
         }}
       >
         <button
@@ -1501,7 +1491,14 @@ export default function VoiceChat({
         </button>
       </div>
       {!supportsRecording && (
-        <p style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 8 }}>
+        <p
+          style={{
+            fontSize: 12,
+            color: COLORS.textMuted,
+            marginTop: 8,
+            flexShrink: 0,
+          }}
+        >
           Voice input not supported in this browser. Type your message instead.
         </p>
       )}
