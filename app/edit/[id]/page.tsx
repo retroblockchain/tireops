@@ -180,12 +180,27 @@ export default function EditTire() {
           fontSize: 22,
           fontWeight: 800,
           color: COLORS.ink,
-          margin: '0 0 16px',
+          margin: '0 0 2px',
           letterSpacing: -0.2,
         }}
       >
         Edit tire
       </h1>
+      {tire.tire_number != null && (
+        <p
+          style={{
+            fontSize: 13,
+            color: COLORS.textMuted,
+            margin: '0 0 16px',
+            fontFamily:
+              'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+            fontWeight: 600,
+            letterSpacing: 0.3,
+          }}
+        >
+          tire-{tire.tire_number}
+        </p>
+      )}
 
       {FIELDS.map((f) => (
         <div key={f.key} style={{ marginBottom: 12 }}>

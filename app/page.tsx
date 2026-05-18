@@ -28,7 +28,9 @@ export default function Home() {
   }, []);
 
   const shown = tires.filter((t) => {
-    const text = `${t.brand} ${t.model} ${t.size} ${t.season} ${t.shop}`.toLowerCase();
+    const friendly = t.tire_number != null ? `tire-${t.tire_number}` : '';
+    const text =
+      `${friendly} ${t.brand} ${t.model} ${t.size} ${t.season} ${t.shop}`.toLowerCase();
     return text.includes(q.toLowerCase());
   });
   const recent = tires.slice(0, RECENT_COUNT);
@@ -229,12 +231,31 @@ export default function Home() {
         ))}
       </section>
 
+      <div
+        style={{
+          textAlign: 'center',
+          marginTop: 24,
+          marginBottom: 4,
+        }}
+      >
+        <a
+          href="/bugs"
+          style={{
+            fontSize: 12,
+            color: COLORS.textMuted,
+            textDecoration: 'none',
+            fontWeight: 500,
+          }}
+        >
+          🐛 Report a bug
+        </a>
+      </div>
       <p
         style={{
           fontSize: 11,
           color: COLORS.textSubtle,
           textAlign: 'center',
-          marginTop: 24,
+          marginTop: 4,
           marginBottom: 8,
         }}
       >

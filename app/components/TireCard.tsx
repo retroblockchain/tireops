@@ -3,6 +3,7 @@ import { COLORS } from '../../lib/theme';
 
 type Tire = {
   id: string;
+  tire_number?: number | string | null;
   shop?: string | null;
   size?: string | null;
   brand?: string | null;
@@ -76,16 +77,32 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
             >
               {t.shop || 'Unassigned'}
             </span>
-            <span
-              aria-hidden="true"
-              style={{
-                color: COLORS.textSubtle,
-                fontSize: 22,
-                lineHeight: 1,
-              }}
-            >
-              ›
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              {t.tire_number != null && t.tire_number !== '' && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: COLORS.textMuted,
+                    fontFamily:
+                      'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                    fontWeight: 600,
+                    letterSpacing: 0.2,
+                  }}
+                >
+                  tire-{t.tire_number}
+                </span>
+              )}
+              <span
+                aria-hidden="true"
+                style={{
+                  color: COLORS.textSubtle,
+                  fontSize: 22,
+                  lineHeight: 1,
+                }}
+              >
+                ›
+              </span>
+            </div>
           </div>
           <div
             style={{

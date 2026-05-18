@@ -25,9 +25,11 @@ function buildSystemPrompt(currentShop: string): string {
   return `You are a voice assistant for a tire shop inventory app. Users speak to you about their tire stock.
 
 The 'tires' table has these columns:
-- id (uuid, auto), shop (text), brand (text), model (text), size (text, e.g. "225/65R17"),
+- id (uuid, auto), tire_number (bigint, auto — shown to users as "tire-N", e.g. "tire-25"), shop (text), brand (text), model (text), size (text, e.g. "225/65R17"),
   season (text: "summer" | "winter" | "all-season"), condition (text: "new" | "used"),
   tread_pct (number 0-100), quantity (number), price (number), notes (text), is_complete (bool, auto), created_at, updated_at.
+
+Users often refer to a tire by its friendly id like "tire-25" or "tire 3". In search_tires, filter via tire_number (a number) or friendly_id (a string like "tire-25"). In update_tire / delete_tire, the id field accepts EITHER the uuid OR the friendly id "tire-N" — the server resolves it. When confirming actions back to the user, prefer the friendly id ("tire-25") over the uuid.
 
 Rules:
 1. NEVER invent tire data. Only report what tools return.
@@ -49,24 +51,27 @@ ${shopRule}
    c. Ask the user to confirm before saving — e.g. "I found 12 tires. Should I add them all? Say yes to confirm."
    d. ONLY after the user replies with a clear affirmative in a SEPARATE turn may you call add_tire — once per row.
    e. NEVER call add_tire in the same turn you announce what you found from a file. This is critical for spreadsheets that may contain many rows.
-   f. If the user uploaded an image of ONE specific tire (not a spreadsheet of many), and a system note in the message gave you a photo_url, include that photo_url in your add_tire call so the photo is saved against the new tire.`;
+   f. If the user uploaded an image of ONE specific tire (not a spreadsheet of many), and a system note in the message gave you a photo_url, include that photo_url in your add_tire call so the photo is saved against the new tire.
+10. BUG REPORTS: If the user reports a problem with the app or asks you to log/file a bug (e.g. "report a bug: the photo upload failed", "log an issue", "this is broken — track it"), call the report_bug tool with a concise description that captures the issue. Confirm to the user that the bug was logged. Ask for clarification only if their description is too vague to be useful — short reports are fine.`;
 }
 
 const TOOLS = [
   {
     name: 'search_tires',
     description:
-      'Search the tires inventory. Use any combination of filters. Returns matching rows. Filters are case-insensitive partial matches for text fields.',
+      'Search the tires inventory. Use any combination of filters. Returns matching rows including each tire\'s tire_number. Filters are case-insensitive partial matches for text fields. To find a specific tire by its friendly id (e.g. "tire-25"), pass either tire_number=25 or friendly_id="tire-25".',
     input_schema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Free-text fragment to match against brand, model, size, season, shop, notes.' },
+        query: { type: 'string', description: 'Free-text fragment to match against brand, model, size, season, shop, notes, or friendly id.' },
         brand: { type: 'string' },
         model: { type: 'string' },
         size: { type: 'string', description: 'e.g. "225/65R17"' },
         season: { type: 'string', description: '"summer", "winter", or "all-season"' },
         condition: { type: 'string', description: '"new" or "used"' },
         shop: { type: 'string' },
+        tire_number: { type: 'number', description: 'Exact match on tire_number — e.g. 25 finds the tire shown to users as "tire-25".' },
+        friendly_id: { type: 'string', description: 'Like "tire-25"; the numeric part is extracted and matched against tire_number.' },
         limit: { type: 'number', description: 'Max rows (default 20)' },
       },
     },
@@ -94,11 +99,11 @@ const TOOLS = [
   },
   {
     name: 'update_tire',
-    description: 'Update an existing tire by id. Provide only the fields to change.',
+    description: 'Update an existing tire. Provide only the fields to change. The id accepts EITHER the internal uuid OR a friendly id like "tire-25".',
     input_schema: {
       type: 'object',
       properties: {
-        id: { type: 'string', description: 'The tire id (uuid).' },
+        id: { type: 'string', description: 'The tire id — either the uuid or the friendly id like "tire-25".' },
         shop: { type: 'string' },
         brand: { type: 'string' },
         model: { type: 'string' },
@@ -120,9 +125,21 @@ const TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        id: { type: 'string', description: 'The tire id (uuid) to delete. Obtain this from search_tires.' },
+        id: { type: 'string', description: 'The tire id — either the uuid or the friendly id like "tire-25". Obtain it from search_tires.' },
       },
       required: ['id'],
+    },
+  },
+  {
+    name: 'report_bug',
+    description:
+      'Log a bug report on behalf of the user. Call this when the user reports a problem with the app or explicitly asks you to log/file a bug. The description should summarize the user\'s complaint concisely.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        description: { type: 'string', description: 'The bug summary in the user\'s own words (or close to it).' },
+      },
+      required: ['description'],
     },
   },
 ];
@@ -131,6 +148,35 @@ const RECOMMENDED_FIELDS = ['brand', 'model', 'size', 'season', 'condition', 'qu
 
 type ToolInput = Record<string, unknown>;
 
+/** Parse "tire-25" (or any string containing digits) into the integer 25. */
+function extractTireNumber(s: string): number | null {
+  const m = s.match(/(\d+)/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Accept either a uuid or a friendly id like "tire-25" and return the uuid.
+ * Returns null when a friendly id was given but no matching tire exists.
+ */
+async function resolveTireId(rawId: string): Promise<string | null> {
+  const trimmed = rawId.trim();
+  if (/^tire[-_\s]*\d+$/i.test(trimmed)) {
+    const num = extractTireNumber(trimmed);
+    if (num == null) return null;
+    const { data } = await supabase
+      .from('tires')
+      .select('id')
+      .eq('tire_number', num)
+      .maybeSingle();
+    return data?.id ?? null;
+  }
+  // Otherwise assume it's already a uuid (or a malformed string — let the
+  // downstream query error naturally).
+  return trimmed;
+}
+
 async function runSearchTires(input: ToolInput) {
   let q = supabase.from('tires').select('*');
   const eqLikeFields = ['brand', 'model', 'size', 'season', 'condition', 'shop'] as const;
@@ -138,6 +184,18 @@ async function runSearchTires(input: ToolInput) {
     const v = input[f];
     if (typeof v === 'string' && v.trim()) q = q.ilike(f, `%${v.trim()}%`);
   }
+
+  // tire_number / friendly_id filter (exact match)
+  let tireNum: number | null = null;
+  if (typeof input.tire_number === 'number' && Number.isFinite(input.tire_number)) {
+    tireNum = Math.floor(input.tire_number);
+  } else if (typeof input.friendly_id === 'string') {
+    tireNum = extractTireNumber(input.friendly_id);
+  }
+  if (tireNum != null) {
+    q = q.eq('tire_number', tireNum);
+  }
+
   const limit = typeof input.limit === 'number' ? Math.min(Math.max(input.limit, 1), 100) : 20;
   q = q.order('created_at', { ascending: false }).limit(limit);
 
@@ -148,7 +206,8 @@ async function runSearchTires(input: ToolInput) {
   const free = typeof input.query === 'string' ? input.query.trim().toLowerCase() : '';
   if (free) {
     rows = rows.filter((r) => {
-      const hay = [r.brand, r.model, r.size, r.season, r.shop, r.notes, r.condition]
+      const friendly = r.tire_number != null ? `tire-${r.tire_number}` : '';
+      const hay = [friendly, r.brand, r.model, r.size, r.season, r.shop, r.notes, r.condition]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
@@ -197,8 +256,10 @@ async function runUpdateTire(
   userEmail: string | null,
   source: ActivitySource,
 ) {
-  const id = input.id;
-  if (typeof id !== 'string') return { error: 'id is required' };
+  const rawId = input.id;
+  if (typeof rawId !== 'string') return { error: 'id is required' };
+  const id = await resolveTireId(rawId);
+  if (!id) return { error: `tire not found: "${rawId}"` };
   const patch: Record<string, unknown> = {};
   for (const f of ['shop', 'brand', 'model', 'size', 'season', 'condition', 'tread_pct', 'quantity', 'price', 'notes']) {
     if (input[f] !== undefined && input[f] !== null && input[f] !== '') patch[f] = input[f];
@@ -215,12 +276,38 @@ async function runDeleteTire(
   userEmail: string | null,
   source: ActivitySource,
 ) {
-  const id = input.id;
-  if (typeof id !== 'string') return { error: 'id is required' };
+  const rawId = input.id;
+  if (typeof rawId !== 'string') return { error: 'id is required' };
+  const id = await resolveTireId(rawId);
+  if (!id) return { error: `tire not found: "${rawId}"` };
   const { data, error } = await supabase.from('tires').delete().eq('id', id).select().single();
   if (error) return { error: error.message };
   await insertActivityLog({ action: 'deleted', tire: data, source, userEmail });
   return { deleted: data };
+}
+
+async function runReportBug(
+  input: ToolInput,
+  currentShop: string,
+  userEmail: string | null,
+) {
+  const description =
+    typeof input.description === 'string' ? input.description.trim() : '';
+  if (!description) return { error: 'description is required' };
+  const shop =
+    currentShop && currentShop !== UNASSIGNED_SHOP ? currentShop : null;
+  const { data, error } = await supabase
+    .from('bug_reports')
+    .insert({
+      description,
+      reported_by: userEmail,
+      shop,
+      source: 'ai',
+    })
+    .select()
+    .single();
+  if (error) return { error: error.message };
+  return { reported: data };
 }
 
 async function runTool(
@@ -235,6 +322,7 @@ async function runTool(
     if (name === 'add_tire') return await runAddTire(input, currentShop, userEmail, source);
     if (name === 'update_tire') return await runUpdateTire(input, userEmail, source);
     if (name === 'delete_tire') return await runDeleteTire(input, userEmail, source);
+    if (name === 'report_bug') return await runReportBug(input, currentShop, userEmail);
     return { error: `unknown tool: ${name}` };
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) };

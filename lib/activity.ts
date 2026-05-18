@@ -20,9 +20,13 @@ export type ActivityLogRow = {
  */
 export function tireDescription(t: any): string {
   if (!t) return 'tire';
+  const friendly =
+    t.tire_number != null && t.tire_number !== '' ? `tire-${t.tire_number}` : '';
   const brandModel = [t.brand, t.model].filter(Boolean).join(' ').trim();
   const size = (t.size || '').toString().trim();
   const main = [brandModel, size].filter(Boolean).join(' ').trim();
+  if (friendly && main) return `${friendly} — ${main}`;
+  if (friendly) return friendly;
   if (main) return main;
   if (t.id) return `tire ${String(t.id).slice(0, 8)}`;
   return 'tire';
