@@ -116,6 +116,44 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+/**
+ * Persisted chat state — survives navigating to /add, /edit, etc. and back
+ * within the same tab. Tab close still clears it (sessionStorage scope).
+ * Attached image bytes are NOT in apiMessages (they're sent inline only),
+ * so storage stays tiny — just prose and tool plumbing.
+ */
+const CHAT_STORAGE_KEY = 'bs-voicechat-v1';
+
+type StoredChat = {
+  uiMessages: UiMsg[];
+  apiMessages: ApiMsg[];
+  hasFileInSession: boolean;
+  selectedVoice: Voice;
+  collapsed: boolean;
+};
+
+function loadStoredChat(): StoredChat | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(CHAT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed as StoredChat;
+  } catch {
+    return null;
+  }
+}
+
+function saveStoredChat(state: StoredChat) {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Quota or serialize error — chat just won't persist this turn.
+  }
+}
+
 type VoiceChatProps = {
   variant?: 'page' | 'embedded';
   initialCollapsed?: boolean;
@@ -150,6 +188,10 @@ export default function VoiceChat({
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<Voice>(DEFAULT_VOICE);
+  // Tracks whether we've finished the sessionStorage rehydrate pass. The
+  // welcome message and the persist effect both gate on this so we don't
+  // wipe stored chat or double-greet on a quick nav round-trip.
+  const [hydrated, setHydrated] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const sendRef = useRef<(text: string) => Promise<void>>(async () => {});
@@ -342,8 +384,55 @@ export default function VoiceChat({
     }
   };
 
+  // -------- Chat persistence (sessionStorage) --------
+  // Restore on mount so a quick trip to /add or /edit/[id] and back doesn't
+  // lose the active conversation. Persist on every settled change.
+  useEffect(() => {
+    const stored = loadStoredChat();
+    if (stored) {
+      if (Array.isArray(stored.uiMessages)) setUiMessages(stored.uiMessages);
+      if (Array.isArray(stored.apiMessages)) setApiMessages(stored.apiMessages);
+      if (typeof stored.hasFileInSession === 'boolean') {
+        setHasFileInSession(stored.hasFileInSession);
+      }
+      if (
+        stored.selectedVoice &&
+        (VOICES as readonly string[]).includes(stored.selectedVoice)
+      ) {
+        setSelectedVoice(stored.selectedVoice);
+      }
+      if (typeof stored.collapsed === 'boolean') setCollapsed(stored.collapsed);
+    }
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    // Skip writes mid-stream — apiMessages is briefly inconsistent (trailing
+    // user msg with no response) until /api/chat replies with finalMessages.
+    if (sending) return;
+    saveStoredChat({
+      uiMessages,
+      apiMessages,
+      hasFileInSession,
+      selectedVoice,
+      collapsed,
+    });
+  }, [
+    hydrated,
+    sending,
+    uiMessages,
+    apiMessages,
+    hasFileInSession,
+    selectedVoice,
+    collapsed,
+  ]);
+
   // -------- Welcome message (once per shop session) --------
   useEffect(() => {
+    // Wait for sessionStorage rehydrate to settle, otherwise we'd prepend a
+    // welcome to a restored conversation.
+    if (!hydrated) return;
     if (!currentShop || currentShop === UNASSIGNED_SHOP) return;
     if (uiMessages.length > 0) return;
     if (getWelcomedShop() === currentShop) return;
@@ -357,7 +446,7 @@ export default function VoiceChat({
     setWelcomedShop(currentShop);
     void speak(greeting);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentShop]);
+  }, [currentShop, hydrated]);
 
   // -------- STT (MediaRecorder + Whisper) --------
   const startRecording = async () => {
@@ -1141,7 +1230,16 @@ export default function VoiceChat({
         style={{ display: 'none' }}
       />
 
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 10,
+          alignItems: 'center',
+          // Pad the mic row so the big circular button has breathing room
+          // from the chat scroll above and from anything below the panel.
+          paddingTop: 4,
+        }}
+      >
         <button
           onClick={toggleMic}
           disabled={micDisabled}
@@ -1241,7 +1339,7 @@ export default function VoiceChat({
           background: COLORS.surface,
           border: `1px solid ${COLORS.border}`,
           borderRadius: RADII.card,
-          marginBottom: 14,
+          marginBottom: 24,
           overflow: 'hidden',
           boxShadow: SHADOWS.card,
         }}
@@ -1291,7 +1389,10 @@ export default function VoiceChat({
           <div
             id="voicechat-body"
             style={{
-              padding: '0 14px 14px',
+              // Roomier bottom padding gives the mic clear separation from
+              // anything below the panel — prevents stray taps from hitting
+              // the next action when the user reaches for the mic.
+              padding: '0 14px 20px',
               display: 'flex',
               flexDirection: 'column',
               height: 360,

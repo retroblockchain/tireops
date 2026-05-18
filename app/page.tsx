@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { APP_VERSION } from '../lib/version';
-import { COLORS, RADII, SHADOWS } from '../lib/theme';
+import { COLORS, RADII } from '../lib/theme';
 import { loadFirstPhotosByTire } from '../lib/photos';
 import { useCurrentShop } from '../lib/useCurrentShop';
 import { isStale, STALE_STYLE } from '../lib/tireStatus';
@@ -124,23 +124,36 @@ export default function Home() {
 
       <VoiceChat variant="embedded" />
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap', alignItems: 'stretch' }}>
+      {/*
+        Secondary nav — kept compact on purpose. The mic in VoiceChat above
+        is the primary control; these three are occasional-use shortcuts.
+        Smaller targets here also reduce mis-taps when reaching for the mic.
+      */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          marginBottom: 22,
+          flexWrap: 'wrap',
+          alignItems: 'center',
+        }}
+      >
         <a
           href="/add"
           style={{
-            flex: '1 1 0',
-            minWidth: 110,
-            textAlign: 'center',
-            padding: '13px 16px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '7px 14px',
             background: COLORS.red,
             color: '#fff',
-            borderRadius: RADII.control,
+            border: 'none',
+            borderRadius: RADII.pill,
             textDecoration: 'none',
             fontWeight: 700,
-            fontSize: 15,
-            letterSpacing: -0.1,
-            boxSizing: 'border-box',
-            boxShadow: SHADOWS.card,
+            fontSize: 13,
+            letterSpacing: 0.1,
+            lineHeight: 1.3,
           }}
         >
           + Add tire
@@ -148,19 +161,19 @@ export default function Home() {
         <a
           href="/history"
           style={{
-            flex: '1 1 0',
-            minWidth: 110,
-            textAlign: 'center',
-            padding: '13px 16px',
-            background: COLORS.surface,
-            color: COLORS.red,
-            border: `1.5px solid ${COLORS.red}`,
-            borderRadius: RADII.control,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '7px 14px',
+            background: 'transparent',
+            color: COLORS.textBody,
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: RADII.pill,
             textDecoration: 'none',
-            fontWeight: 700,
-            fontSize: 15,
-            letterSpacing: -0.1,
-            boxSizing: 'border-box',
+            fontWeight: 600,
+            fontSize: 13,
+            letterSpacing: 0.1,
+            lineHeight: 1.3,
           }}
         >
           📋 History
@@ -170,36 +183,22 @@ export default function Home() {
           aria-label="Recently sold"
           title="Recently sold"
           style={{
-            flex: '0 0 auto',
-            width: 56,
-            display: 'flex',
-            flexDirection: 'column',
+            display: 'inline-flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            padding: '6px 4px 8px',
-            background: COLORS.surface,
+            gap: 5,
+            padding: '7px 14px',
+            background: 'transparent',
             color: COLORS.textBody,
             border: `1px solid ${COLORS.border}`,
-            borderRadius: RADII.control,
+            borderRadius: RADII.pill,
             textDecoration: 'none',
-            boxSizing: 'border-box',
-            lineHeight: 1,
-            boxShadow: SHADOWS.card,
+            fontWeight: 600,
+            fontSize: 13,
+            letterSpacing: 0.1,
+            lineHeight: 1.3,
           }}
         >
-          <span style={{ fontSize: 22, lineHeight: 1 }}>🚚</span>
-          <span
-            style={{
-              fontSize: 10,
-              marginTop: 5,
-              fontWeight: 700,
-              letterSpacing: 0.6,
-              textTransform: 'uppercase',
-              color: COLORS.textMuted,
-            }}
-          >
-            Sold
-          </span>
+          🚚 Sold
         </a>
       </div>
 
