@@ -504,8 +504,16 @@ async function buildAttachmentBlocks(att: AttachmentInput): Promise<ContentBlock
   return blocks;
 }
 
-async function callAnthropic(messages: Message[], system: string) {
-  const res = await fetch(ANTHROPIC_URL, {
+/**
+ * Streaming Anthropic call. Returns the raw Response so the caller can pipe
+ * SSE events. Caching + max_tokens settings unchanged from the non-streaming
+ * version — both still apply to streamed responses.
+ */
+async function callAnthropicStream(
+  messages: Message[],
+  system: string,
+): Promise<Response> {
+  return fetch(ANTHROPIC_URL, {
     method: 'POST',
     headers: {
       'x-api-key': process.env.ANTHROPIC_API_KEY!,
@@ -514,12 +522,7 @@ async function callAnthropic(messages: Message[], system: string) {
     },
     body: JSON.stringify({
       model: MODEL,
-      // 600 is plenty for confirmations, brief replies, and tool-call rounds.
-      // Lower max_tokens → faster decode tail.
       max_tokens: 600,
-      // Cache the long system prompt as an ephemeral 5-minute prefix.
-      // Repeated calls within the same shop session reuse the cached prefix
-      // and drop time-to-first-token roughly in half.
       system: [
         {
           type: 'text',
@@ -529,16 +532,121 @@ async function callAnthropic(messages: Message[], system: string) {
       ],
       tools: TOOLS,
       messages,
+      stream: true,
     }),
   });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`anthropic ${res.status}: ${body}`);
+}
+
+type StepResult = { content: ContentBlock[] };
+
+/**
+ * Parse an Anthropic SSE stream into final `ContentBlock[]`, invoking
+ * `onTextDelta` for every visible text fragment as it arrives. Tool-use
+ * blocks are accumulated server-side (their input_json deltas are stitched
+ * together and parsed when the block closes); they're NOT streamed to the
+ * client — the client only sees text.
+ */
+async function parseAnthropicStream(
+  body: ReadableStream<Uint8Array>,
+  onTextDelta: (text: string) => void,
+): Promise<StepResult> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  type Block = {
+    kind: 'text' | 'tool_use';
+    text?: string;
+    toolUseId?: string;
+    toolUseName?: string;
+    toolUseInputJson?: string;
+  };
+  const blocks: Block[] = [];
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data: ')) continue;
+      const data = trimmed.slice(6);
+      if (!data || data === '[DONE]') continue;
+      let event: {
+        type?: string;
+        index?: number;
+        content_block?: { type: string; id?: string; name?: string };
+        delta?: {
+          type?: string;
+          text?: string;
+          partial_json?: string;
+        };
+        error?: { message?: string };
+      };
+      try {
+        event = JSON.parse(data);
+      } catch {
+        continue;
+      }
+
+      if (event.type === 'content_block_start' && typeof event.index === 'number') {
+        const block = event.content_block;
+        if (block?.type === 'text') {
+          blocks[event.index] = { kind: 'text', text: '' };
+        } else if (block?.type === 'tool_use') {
+          blocks[event.index] = {
+            kind: 'tool_use',
+            toolUseId: block.id,
+            toolUseName: block.name,
+            toolUseInputJson: '',
+          };
+        }
+      } else if (event.type === 'content_block_delta' && typeof event.index === 'number') {
+        const block = blocks[event.index];
+        if (!block) continue;
+        if (event.delta?.type === 'text_delta' && block.kind === 'text') {
+          const t = event.delta.text || '';
+          block.text = (block.text || '') + t;
+          if (t) onTextDelta(t);
+        } else if (
+          event.delta?.type === 'input_json_delta' &&
+          block.kind === 'tool_use'
+        ) {
+          block.toolUseInputJson =
+            (block.toolUseInputJson || '') + (event.delta.partial_json || '');
+        }
+      } else if (event.type === 'error') {
+        throw new Error(event.error?.message || 'anthropic stream error');
+      }
+      // content_block_stop / message_delta / message_stop need no action.
+    }
   }
-  return res.json() as Promise<{
-    content: ContentBlock[];
-    stop_reason: string;
-  }>;
+
+  const content: ContentBlock[] = [];
+  for (const block of blocks) {
+    if (!block) continue;
+    if (block.kind === 'text') {
+      content.push({ type: 'text', text: block.text || '' });
+    } else if (block.kind === 'tool_use') {
+      let input: ToolInput = {};
+      try {
+        input = JSON.parse(block.toolUseInputJson || '{}');
+      } catch {
+        // Malformed partial JSON — leave input empty, tool will likely error.
+      }
+      content.push({
+        type: 'tool_use',
+        id: block.toolUseId || '',
+        name: block.toolUseName || '',
+        input,
+      });
+    }
+  }
+
+  return { content };
 }
 
 export async function POST(req: NextRequest) {
@@ -595,38 +703,94 @@ export async function POST(req: NextRequest) {
   const source: ActivitySource = body.hasFileInSession ? 'file' : 'voice';
   const system = buildSystemPrompt(currentShop);
 
-  try {
-    for (let step = 0; step < 6; step++) {
-      const result = await callAnthropic(messages, system);
-      const assistantBlocks = result.content;
-      messages.push({ role: 'assistant', content: assistantBlocks });
+  // Stream NDJSON to the client. Each line is one event:
+  //   { "type": "delta", "text": "..." }   text fragment from Claude
+  //   { "type": "end",   "messages": [...] }  conversation history at completion
+  //   { "type": "error", "error": "..." }  fatal stream error
+  // The client reads chunks, fills the placeholder assistant bubble live, then
+  // (after the 'end' event) overwrites apiMessages and triggers TTS.
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const enqueue = (obj: unknown) => {
+        controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'));
+      };
 
-      const toolUses = assistantBlocks.filter((b): b is Extract<ContentBlock, { type: 'tool_use' }> => b.type === 'tool_use');
-      if (toolUses.length === 0) {
-        const text = assistantBlocks
-          .filter((b): b is Extract<ContentBlock, { type: 'text' }> => b.type === 'text')
-          .map((b) => b.text)
-          .join('\n')
-          .trim();
-        return Response.json({ reply: text, messages });
-      }
+      try {
+        for (let step = 0; step < 6; step++) {
+          const anthropicRes = await callAnthropicStream(messages, system);
+          if (!anthropicRes.ok || !anthropicRes.body) {
+            const body = await anthropicRes.text().catch(() => '');
+            throw new Error(
+              `anthropic ${anthropicRes.status}: ${body.slice(0, 300)}`,
+            );
+          }
 
-      const toolResults: ContentBlock[] = [];
-      for (const tu of toolUses) {
-        // If the model just told us the user's name, capture it BEFORE
-        // running any downstream tool calls in this turn so the activity
-        // log entries for those calls already include the name.
-        if (tu.name === 'set_employee_name') {
-          const n = typeof tu.input.name === 'string' ? tu.input.name.trim() : '';
-          if (n) employeeName = n;
+          const result = await parseAnthropicStream(
+            anthropicRes.body,
+            (delta) => enqueue({ type: 'delta', text: delta }),
+          );
+
+          messages.push({ role: 'assistant', content: result.content });
+
+          const toolUses = result.content.filter(
+            (b): b is Extract<ContentBlock, { type: 'tool_use' }> =>
+              b.type === 'tool_use',
+          );
+
+          if (toolUses.length === 0) {
+            // Final assistant turn — close out the stream with the full
+            // conversation so the client can persist it for next turn.
+            enqueue({ type: 'end', messages });
+            controller.close();
+            return;
+          }
+
+          const toolResults: ContentBlock[] = [];
+          for (const tu of toolUses) {
+            // Capture employee name BEFORE running downstream tool calls
+            // in this turn so any activity_log inserts already include it.
+            if (tu.name === 'set_employee_name') {
+              const n = typeof tu.input.name === 'string' ? tu.input.name.trim() : '';
+              if (n) employeeName = n;
+            }
+            const out = await runTool(
+              tu.name,
+              tu.input,
+              currentShop,
+              userEmail,
+              source,
+              employeeName,
+            );
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: tu.id,
+              content: JSON.stringify(out),
+            });
+          }
+          messages.push({ role: 'user', content: toolResults });
         }
-        const out = await runTool(tu.name, tu.input, currentShop, userEmail, source, employeeName);
-        toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(out) });
+
+        enqueue({ type: 'error', error: 'tool loop did not converge' });
+        controller.close();
+      } catch (e: unknown) {
+        enqueue({
+          type: 'error',
+          error: e instanceof Error ? e.message : String(e),
+        });
+        controller.close();
       }
-      messages.push({ role: 'user', content: toolResults });
-    }
-    return Response.json({ error: 'tool loop did not converge', messages }, { status: 500 });
-  } catch (e: unknown) {
-    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
-  }
+    },
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      'content-type': 'application/x-ndjson',
+      'cache-control': 'no-store',
+      // Disable reverse-proxy buffering so deltas reach the browser the
+      // instant they're enqueued.
+      'x-accel-buffering': 'no',
+    },
+  });
 }

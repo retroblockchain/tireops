@@ -456,9 +456,12 @@ export default function VoiceChat({
 
   // -------- Chat --------
   useEffect(() => {
+    // Use 'auto' (instant) instead of 'smooth' — text streams in many small
+    // updates per second, and a smooth scroll gets interrupted before it
+    // reaches the bottom each time. Instant keeps the latest word visible.
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
-      behavior: 'smooth',
+      behavior: 'auto',
     });
   }, [uiMessages, sending, transcribing]);
 
@@ -545,6 +548,14 @@ export default function VoiceChat({
       setHasFileInSession(true);
     }
 
+    // Optimistically place an empty assistant bubble next to the user's
+    // message. The bubble renders animated typing dots until the first
+    // text delta arrives, then streams in word by word.
+    setUiMessages([...nextUi, { role: 'assistant' as const, text: '' }]);
+
+    let accumulatedText = '';
+    let finalMessages: ApiMsg[] | null = null;
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -558,22 +569,81 @@ export default function VoiceChat({
           attachment,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      const reply: string = data.reply || '';
-      setApiMessages(data.messages as ApiMsg[]);
-      setUiMessages([...nextUi, { role: 'assistant' as const, text: reply }]);
-      // If the AI just learned the user's name via set_employee_name,
-      // capture it for the rest of this session (state + sessionStorage so
-      // form-based add/edit/delete tag activity_log too).
-      const newName = extractEmployeeNameFromMessages(data.messages as ApiMsg[]);
+      if (!res.ok || !res.body) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          let event: { type?: string; text?: string; messages?: ApiMsg[]; error?: string };
+          try {
+            event = JSON.parse(trimmed);
+          } catch {
+            continue;
+          }
+
+          if (event.type === 'delta' && typeof event.text === 'string') {
+            accumulatedText += event.text;
+            // Mutate the trailing assistant bubble's text in place — React
+            // re-renders only that bubble's text node.
+            const snapshot = accumulatedText;
+            setUiMessages((prev) => {
+              const copy = [...prev];
+              const lastIdx = copy.length - 1;
+              const last = copy[lastIdx];
+              if (last && last.role === 'assistant') {
+                copy[lastIdx] = { ...last, text: snapshot };
+              }
+              return copy;
+            });
+          } else if (event.type === 'end' && Array.isArray(event.messages)) {
+            finalMessages = event.messages;
+          } else if (event.type === 'error') {
+            throw new Error(event.error || 'stream error');
+          }
+        }
+      }
+
+      if (finalMessages) {
+        setApiMessages(finalMessages);
+      }
+
+      // Capture employee name from the just-completed turn.
+      const newName = extractEmployeeNameFromMessages(finalMessages || []);
       if (newName && newName !== employeeName) {
         setEmployeeName(newName);
         persistEmployeeName(newName);
       }
-      void speak(reply);
+
+      // Fire TTS the instant streaming ends. (Streaming the audio itself
+      // is already incremental via MSE inside speak().)
+      if (accumulatedText.trim()) {
+        void speak(accumulatedText.trim());
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      // Remove the empty assistant placeholder if the stream never produced
+      // any text (so the chat doesn't show a perpetually-typing bubble).
+      setUiMessages((prev) => {
+        const copy = [...prev];
+        const last = copy[copy.length - 1];
+        if (last && last.role === 'assistant' && !last.text) {
+          copy.pop();
+        }
+        return copy;
+      });
     } finally {
       setSending(false);
     }
@@ -590,6 +660,10 @@ export default function VoiceChat({
           0% { transform: scale(0.9); opacity: 0.7; }
           50% { transform: scale(1.15); opacity: 1; }
           100% { transform: scale(0.9); opacity: 0.7; }
+        }
+        @keyframes bs-typing {
+          0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+          30% { opacity: 1; transform: translateY(-2px); }
         }
       `}</style>
 
@@ -803,7 +877,52 @@ export default function VoiceChat({
                   📎 {m.attachmentName}
                 </div>
               )}
-              {m.text || (m.role === 'assistant' ? '…' : '')}
+              {m.text ? (
+                m.text
+              ) : m.role === 'assistant' ? (
+                <span
+                  aria-label="Thinking"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '2px 0',
+                  }}
+                >
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: COLORS.textMuted,
+                      animation: 'bs-typing 1.2s 0s infinite ease-in-out',
+                    }}
+                  />
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: COLORS.textMuted,
+                      animation: 'bs-typing 1.2s 0.18s infinite ease-in-out',
+                    }}
+                  />
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: COLORS.textMuted,
+                      animation: 'bs-typing 1.2s 0.36s infinite ease-in-out',
+                    }}
+                  />
+                </span>
+              ) : (
+                ''
+              )}
             </div>
           </div>
         ))}
@@ -880,17 +999,8 @@ export default function VoiceChat({
             </div>
           );
         })()}
-        {sending && (
-          <div
-            style={{
-              color: COLORS.textMuted,
-              fontSize: 13,
-              fontStyle: 'italic',
-            }}
-          >
-            thinking…
-          </div>
-        )}
+        {/* The empty-assistant-bubble typing dots above replace the old
+            inline "thinking…" indicator — same signal, more contextual. */}
         {error && (
           <div
             style={{ color: COLORS.redDeep, fontSize: 13, marginTop: 8 }}
