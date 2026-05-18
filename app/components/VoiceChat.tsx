@@ -196,6 +196,11 @@ export default function VoiceChat({
   // welcome message and the persist effect both gate on this so we don't
   // wipe stored chat or double-greet on a quick nav round-trip.
   const [hydrated, setHydrated] = useState(false);
+  // Two-step "New chat" affordance. First tap arms the button (changes label
+  // to "Tap again"); a second tap within 3 s actually clears. After 3 s of
+  // inaction it disarms on its own. Avoids accidental wipes without a modal.
+  const [clearArmed, setClearArmed] = useState(false);
+  const clearArmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const sendRef = useRef<(text: string) => Promise<void>>(async () => {});
@@ -243,6 +248,9 @@ export default function VoiceChat({
       }
       if (ttsUrlRef.current) {
         try { URL.revokeObjectURL(ttsUrlRef.current); } catch { /* ignore */ }
+      }
+      if (clearArmTimerRef.current) {
+        clearTimeout(clearArmTimerRef.current);
       }
     };
   }, []);
@@ -451,6 +459,57 @@ export default function VoiceChat({
     void speak(greeting);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentShop, hydrated]);
+
+  // -------- "New chat" / clear --------
+  // Two-step click. First call arms the button for 3 s; second call within
+  // that window actually clears state + storage + welcomes again. Never
+  // auto-fires — only the user can wipe their conversation.
+  const clearChat = () => {
+    if (clearArmed) {
+      // Stop any in-flight TTS so the greeting we're about to speak isn't
+      // talked over by the previous reply finishing.
+      stopSpeaking();
+      setUiMessages([]);
+      setApiMessages([]);
+      setHasFileInSession(false);
+      setAttachedFiles([]);
+      setDraft('');
+      setError(null);
+      try {
+        sessionStorage.removeItem(CHAT_STORAGE_KEY);
+      } catch {
+        /* storage unavailable — persist effect will rewrite anyway */
+      }
+      // Reset the per-shop welcome flag so the new chat starts with the
+      // same greeting a fresh tab would. Re-injected inline below.
+      setWelcomedShop(null);
+      if (currentShop && currentShop !== UNASSIGNED_SHOP) {
+        const known = getEmployeeName();
+        const greeting = known
+          ? `Welcome back, ${known}!`
+          : `Welcome to BuySell Tires ${currentShop}! Who am I speaking with?`;
+        setUiMessages([{ role: 'assistant', text: greeting }]);
+        setWelcomedShop(currentShop);
+        void speak(greeting);
+      }
+      setClearArmed(false);
+      if (clearArmTimerRef.current) {
+        clearTimeout(clearArmTimerRef.current);
+        clearArmTimerRef.current = null;
+      }
+      return;
+    }
+    // First tap — arm and start the 3 s revert timer.
+    setClearArmed(true);
+    if (clearArmTimerRef.current) clearTimeout(clearArmTimerRef.current);
+    clearArmTimerRef.current = setTimeout(() => {
+      setClearArmed(false);
+      clearArmTimerRef.current = null;
+    }, 3000);
+  };
+
+  const clearDisabled =
+    sending || recording || transcribing || uiMessages.length === 0;
 
   // -------- STT (MediaRecorder + Whisper) --------
   const startRecording = async () => {
@@ -855,15 +914,27 @@ export default function VoiceChat({
         </p>
       )}
 
+      {/*
+        Row 1 of the panel: voice picker on the left, "New chat" reset on
+        the right. The clear button is intentionally small and quiet —
+        it's there if you need it, never the visual focus.
+      */}
+      <div
+        style={{
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          marginBottom: 8,
+          flexWrap: 'wrap',
+        }}
+      >
       <label
         style={{
-          // flexShrink:0 — fixed-height row, never gives up space to the
-          // chat scroll (only the chat is allowed to shrink).
-          flexShrink: 0,
           display: 'inline-flex',
           alignItems: 'center',
           gap: 6,
-          marginBottom: 8,
           fontSize: 11,
           color: COLORS.textMuted,
           fontWeight: 700,
@@ -918,6 +989,38 @@ export default function VoiceChat({
           </span>
         </span>
       </label>
+        <button
+          type="button"
+          onClick={clearChat}
+          disabled={clearDisabled}
+          aria-label={
+            clearArmed ? 'Tap again to clear the chat' : 'Start a new chat'
+          }
+          title={
+            clearArmed
+              ? 'Tap again within 3 seconds to clear'
+              : 'New chat — clears the current conversation'
+          }
+          style={{
+            padding: '4px 10px',
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: 0.4,
+            textTransform: 'uppercase',
+            background: clearArmed ? COLORS.redSoftBg : 'transparent',
+            color: clearArmed ? COLORS.red : COLORS.textMuted,
+            border: `1px solid ${clearArmed ? COLORS.red : COLORS.border}`,
+            borderRadius: RADII.pill,
+            cursor: clearDisabled ? 'not-allowed' : 'pointer',
+            opacity: clearDisabled ? 0.4 : 1,
+            fontFamily: 'inherit',
+            lineHeight: 1.2,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {clearArmed ? 'Tap again' : '↻ New chat'}
+        </button>
+      </div>
 
       <div
         style={{

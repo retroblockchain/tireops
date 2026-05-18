@@ -18,6 +18,14 @@ const MODEL = 'claude-sonnet-4-6';
 
 const UNASSIGNED_SHOP = 'Unassigned';
 
+/**
+ * How many user-initiated turns to keep when sending the conversation to
+ * Anthropic. Older turns are dropped from the API request (the client still
+ * shows the full visible chat — this just caps the per-request payload).
+ * 12 is generous for shop-floor flows while staying well under rate limits.
+ */
+const MAX_HISTORY_TURNS = 12;
+
 function buildSystemPrompt(currentShop: string): string {
   const knownShop = currentShop && currentShop !== UNASSIGNED_SHOP;
   const shopRule = knownShop
@@ -739,6 +747,112 @@ If this message contains several "image was uploaded" notes, that means several 
 }
 
 /**
+ * Identify indices of "real" user-initiated turns inside a conversation:
+ * user messages whose content is plain text or a content-block array that
+ * doesn't carry a tool_result. (tool_result-only user messages are part of
+ * an in-flight tool loop, not a new turn.) Used to find safe truncation
+ * boundaries — slicing the conversation at a user-turn index never strands
+ * an orphan tool_result at position 0.
+ */
+function userTurnIndexes(messages: Message[]): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (m.role !== 'user') continue;
+    if (typeof m.content === 'string') {
+      out.push(i);
+      continue;
+    }
+    if (Array.isArray(m.content)) {
+      const hasToolResult = m.content.some((b) => b.type === 'tool_result');
+      if (!hasToolResult) out.push(i);
+    }
+  }
+  return out;
+}
+
+/**
+ * Drop bulky inline file content (image bytes/URLs and PDF base64) from a
+ * message's content blocks. The accompanying system-note text block (added
+ * by buildAttachmentBlocks) is left intact so the AI still knows the upload
+ * happened and what its URL is — only the binary data goes away. Used to
+ * keep older turns small when an attachment is now ancient history.
+ */
+function stripBulkContent(content: ContentBlock[]): ContentBlock[] {
+  const out: ContentBlock[] = [];
+  let droppedDoc = false;
+  for (const block of content) {
+    if (block.type === 'image') {
+      // The neighbouring text block (added alongside the image) already
+      // records the photo's URL. Just drop the image source.
+      continue;
+    }
+    if (block.type === 'document') {
+      droppedDoc = true;
+      continue;
+    }
+    out.push(block);
+  }
+  if (droppedDoc) {
+    out.push({
+      type: 'text',
+      text: '[Earlier PDF attachment in this turn — already processed; bytes omitted from history.]',
+    });
+  }
+  return out;
+}
+
+/**
+ * Build the slimmed message list we actually send to Anthropic per request:
+ *  1. Cap history at the last `maxTurns` user-initiated turns. Older context
+ *     is dropped entirely — the visible chat on the client is unaffected.
+ *  2. Strip image/document binary data from every message EXCEPT the most
+ *     recent user turn (the freshly-arrived one with this turn's attachments
+ *     still actionable). Past attachments stay referenced by their system-
+ *     note text — Anthropic doesn't need the bytes again.
+ *
+ * Called once per Anthropic request inside the tool loop, so each iteration
+ * sends a fresh slim copy without mutating the master `messages` array.
+ */
+function buildRequestMessages(
+  messages: Message[],
+  maxTurns: number,
+): Message[] {
+  const turnIdxs = userTurnIndexes(messages);
+  const startIdx =
+    turnIdxs.length <= maxTurns
+      ? 0
+      : turnIdxs[turnIdxs.length - maxTurns];
+  const sliced = messages.slice(startIdx);
+
+  // Within the sliced view, find the latest user-initiated turn — its
+  // attachments are still actionable this round trip and must NOT be
+  // stripped.
+  let latestUserTurnIdx = -1;
+  for (let i = sliced.length - 1; i >= 0; i--) {
+    const m = sliced[i];
+    if (m.role !== 'user') continue;
+    if (typeof m.content === 'string') {
+      latestUserTurnIdx = i;
+      break;
+    }
+    if (
+      Array.isArray(m.content) &&
+      !m.content.some((b) => b.type === 'tool_result')
+    ) {
+      latestUserTurnIdx = i;
+      break;
+    }
+  }
+
+  return sliced.map((m, i) => {
+    if (i === latestUserTurnIdx) return m;
+    if (typeof m.content === 'string') return m;
+    return { ...m, content: stripBulkContent(m.content) };
+  });
+}
+
+/**
  * Streaming Anthropic call. Returns the raw Response so the caller can pipe
  * SSE events. Caching + max_tokens settings unchanged from the non-streaming
  * version — both still apply to streamed responses.
@@ -975,7 +1089,15 @@ export async function POST(req: NextRequest) {
 
       try {
         for (let step = 0; step < 6; step++) {
-          const anthropicRes = await callAnthropicStream(messages, system);
+          // Send a slim copy: capped at MAX_HISTORY_TURNS user turns, with
+          // older binary attachments stripped. The master `messages` array
+          // keeps the full conversation so we still return it intact via
+          // the 'end' event for the client to persist.
+          const requestMessages = buildRequestMessages(
+            messages,
+            MAX_HISTORY_TURNS,
+          );
+          const anthropicRes = await callAnthropicStream(requestMessages, system);
           if (!anthropicRes.ok || !anthropicRes.body) {
             const body = await anthropicRes.text().catch(() => '');
             throw new Error(
