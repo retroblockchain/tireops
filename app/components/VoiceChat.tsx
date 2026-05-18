@@ -166,7 +166,11 @@ export default function VoiceChat({
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const { shop: currentShop, email: currentUserEmail } = useAuthInfo();
 
-  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  // `attachedFiles` is an array so the user can attach several photos (and
+  // optionally a PDF/spreadsheet) in one chat message. Each entry gets its
+  // own thumbnail preview and individual remove button below.
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [filePreviews, setFilePreviews] = useState<string[]>([]);
   const [hasFileInSession, setHasFileInSession] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -554,79 +558,128 @@ export default function VoiceChat({
     });
   }, [uiMessages, sending, transcribing]);
 
+  // Rebuild preview object URLs whenever the attached list changes; revoke
+  // the previous batch so we don't leak blob URLs. Non-image files don't get
+  // an object URL — the grid below renders a name-only tile for them.
+  useEffect(() => {
+    const urls = attachedFiles.map((f) =>
+      f.type.startsWith('image/') ? URL.createObjectURL(f) : '',
+    );
+    setFilePreviews(urls);
+    return () => {
+      for (const u of urls) {
+        if (u) {
+          try { URL.revokeObjectURL(u); } catch { /* ignore */ }
+        }
+      }
+    };
+  }, [attachedFiles]);
+
   const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const picked = Array.from(e.target.files || []);
+    // Reset the input so the user can re-pick the same file later if they
+    // removed it from the pending list.
     e.target.value = '';
-    if (!file) return;
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      setError(
-        `File is too large (${Math.round(file.size / 1024 / 1024)} MB). Max is ${Math.round(
-          MAX_ATTACHMENT_BYTES / 1024 / 1024,
-        )} MB.`,
-      );
-      return;
+    if (picked.length === 0) return;
+
+    // Per-file size check — flag any oversized ones, accept the rest.
+    const accepted: File[] = [];
+    const tooBig: string[] = [];
+    for (const f of picked) {
+      if (f.size > MAX_ATTACHMENT_BYTES) tooBig.push(f.name);
+      else accepted.push(f);
     }
-    setAttachedFile(file);
-    setError(null);
+    if (accepted.length > 0) {
+      setAttachedFiles((prev) => [...prev, ...accepted]);
+    }
+    if (tooBig.length > 0) {
+      const limit = Math.round(MAX_ATTACHMENT_BYTES / 1024 / 1024);
+      setError(
+        `Skipped ${tooBig.length} file${tooBig.length === 1 ? '' : 's'} over ${limit} MB: ${tooBig.join(', ')}`,
+      );
+    } else {
+      setError(null);
+    }
   };
 
-  const clearAttachedFile = () => setAttachedFile(null);
+  const removeAttachedFile = (i: number) => {
+    setAttachedFiles((prev) => prev.filter((_, idx) => idx !== i));
+  };
+
+  const clearAttachedFiles = () => setAttachedFiles([]);
 
   const send = async (text: string) => {
-    const file = attachedFile;
-    if ((!text.trim() && !file) || sending) return;
+    const files = attachedFiles;
+    if ((!text.trim() && files.length === 0) || sending) return;
 
     setSending(true);
     setError(null);
     setDraft('');
 
-    // If the user attached a file but typed nothing, send a default prompt
+    // If the user attached files but typed nothing, send a default prompt
     // that nudges Claude into "read and propose" mode (no auto-add).
     const effectiveText =
       text.trim() ||
-      (file
-        ? 'Read this attached file and list every tire entry you find. Do NOT add anything yet — wait for my confirmation.'
+      (files.length > 0
+        ? files.length === 1
+          ? 'Read this attached file and list every tire entry you find. Do NOT add anything yet — wait for my confirmation.'
+          : `Read these ${files.length} attached files and list every tire entry you find across them. Do NOT add anything yet — wait for my confirmation.`
         : '');
 
-    let attachment:
-      | { name: string; type: string; base64?: string; photoUrl?: string }
-      | undefined;
-    if (file) {
+    type Attachment = {
+      name: string;
+      type: string;
+      base64?: string;
+      photoUrl?: string;
+    };
+    let attachments: Attachment[] = [];
+    if (files.length > 0) {
       try {
-        if (file.type.startsWith('image/')) {
-          // Images go straight to Supabase Storage (compressed inside
-          // uploadPendingPhoto). We send ONLY the URL to /api/chat — no
-          // base64 in the request body — so we never hit Vercel's 4.5 MB
-          // serverless body limit, even for big phone-camera photos.
-          const url = await uploadPendingPhoto(file);
-          if (!url) {
-            setError(
-              'Photo upload failed — the image may be too large or your network dropped. Please try again.',
-            );
-            setSending(false);
-            return;
-          }
-          attachment = { name: file.name, type: file.type, photoUrl: url };
-        } else {
-          // PDFs and spreadsheets still go via base64. They're typically
-          // small enough to fit in the request body. (~3 MB raw cap to
-          // stay under Vercel's ~4.5 MB limit after base64 inflation.)
-          const base64 = await fileToBase64(file);
-          attachment = { name: file.name, type: file.type, base64 };
-        }
-      } catch {
-        setError('Failed to read the attached file.');
+        // Upload images to Supabase Storage in parallel (URL only goes over
+        // the wire to /api/chat — never base64 — so we stay well under
+        // Vercel's 4.5 MB body limit even for several phone-camera photos).
+        // PDFs/spreadsheets still go as base64 since they're small.
+        attachments = await Promise.all(
+          files.map(async (file): Promise<Attachment> => {
+            if (file.type.startsWith('image/')) {
+              const url = await uploadPendingPhoto(file);
+              if (!url) {
+                throw new Error(`Photo upload failed for "${file.name}"`);
+              }
+              return { name: file.name, type: file.type, photoUrl: url };
+            } else {
+              const base64 = await fileToBase64(file);
+              return { name: file.name, type: file.type, base64 };
+            }
+          }),
+        );
+      } catch (e) {
+        setError(
+          e instanceof Error
+            ? `${e.message} — please try again, or remove that file.`
+            : 'Failed to upload an attached file.',
+        );
         setSending(false);
         return;
       }
     }
+
+    const attachmentLabel =
+      files.length === 0
+        ? undefined
+        : files.length === 1
+          ? files[0].name
+          : `${files.length} files (${files
+              .slice(0, 2)
+              .map((f) => f.name)
+              .join(', ')}${files.length > 2 ? '…' : ''})`;
 
     const nextUi = [
       ...uiMessages,
       {
         role: 'user' as const,
         text: effectiveText,
-        attachmentName: file?.name,
+        attachmentName: attachmentLabel,
       },
     ];
     const nextApi = [
@@ -635,8 +688,8 @@ export default function VoiceChat({
     ];
     setUiMessages(nextUi);
     setApiMessages(nextApi);
-    if (file) {
-      setAttachedFile(null);
+    if (files.length > 0) {
+      setAttachedFiles([]);
       setHasFileInSession(true);
     }
 
@@ -657,8 +710,10 @@ export default function VoiceChat({
           currentShop,
           currentUserEmail,
           employeeName,
-          hasFileInSession: hasFileInSession || !!file,
-          attachment,
+          hasFileInSession: hasFileInSession || files.length > 0,
+          // Always send the array. The server also accepts the legacy
+          // singular `attachment` field for older clients.
+          attachments: attachments.length > 0 ? attachments : undefined,
         }),
       });
       if (!res.ok || !res.body) {
@@ -1168,57 +1223,177 @@ export default function VoiceChat({
         </div>
       )}
 
-      {attachedFile && (
+      {attachedFiles.length > 0 && (
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 8,
-            padding: '6px 8px 6px 14px',
-            background: COLORS.surface,
-            border: `1px solid ${COLORS.red}`,
-            borderRadius: RADII.pill,
             marginBottom: 10,
-            color: COLORS.red,
-            fontSize: 13,
-            fontWeight: 600,
-            letterSpacing: 0.1,
+            padding: 10,
+            background: COLORS.surfaceSoft,
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: RADII.card,
           }}
         >
-          <span
+          <div
             style={{
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              minWidth: 0,
-              flex: '1 1 0',
-            }}
-            title={attachedFile.name}
-          >
-            📎 {attachedFile.name}
-          </span>
-          <button
-            type="button"
-            onClick={clearAttachedFile}
-            aria-label="Remove attachment"
-            disabled={sending}
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: '50%',
-              border: 'none',
-              background: COLORS.redDeep,
-              color: '#fff',
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: sending ? 'not-allowed' : 'pointer',
-              lineHeight: 1,
-              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              marginBottom: 8,
             }}
           >
-            ×
-          </button>
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: 0.4,
+                textTransform: 'uppercase',
+                color: COLORS.textMuted,
+              }}
+            >
+              {attachedFiles.length}{' '}
+              {attachedFiles.length === 1 ? 'attachment' : 'attachments'}
+            </span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending}
+                style={{
+                  padding: '4px 10px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  background: 'transparent',
+                  color: COLORS.red,
+                  border: `1px solid ${COLORS.red}`,
+                  borderRadius: RADII.pill,
+                  cursor: sending ? 'not-allowed' : 'pointer',
+                  letterSpacing: 0.2,
+                }}
+              >
+                + Add more
+              </button>
+              {attachedFiles.length > 1 && (
+                <button
+                  type="button"
+                  onClick={clearAttachedFiles}
+                  disabled={sending}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: 'transparent',
+                    color: COLORS.textMuted,
+                    border: `1px solid ${COLORS.border}`,
+                    borderRadius: RADII.pill,
+                    cursor: sending ? 'not-allowed' : 'pointer',
+                    letterSpacing: 0.2,
+                  }}
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))',
+              gap: 8,
+            }}
+          >
+            {attachedFiles.map((file, i) => {
+              const preview = filePreviews[i];
+              const isImage = file.type.startsWith('image/');
+              return (
+                <div
+                  key={`${file.name}-${i}`}
+                  style={{
+                    position: 'relative',
+                    paddingTop: '100%',
+                    borderRadius: RADII.control,
+                    overflow: 'hidden',
+                    background: COLORS.surface,
+                    border: `1px solid ${COLORS.border}`,
+                    boxShadow: SHADOWS.card,
+                  }}
+                  title={file.name}
+                >
+                  {isImage && preview ? (
+                    <img
+                      src={preview}
+                      alt=""
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 4,
+                        color: COLORS.textBody,
+                        textAlign: 'center',
+                        fontSize: 10,
+                        fontWeight: 600,
+                        lineHeight: 1.2,
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      <span style={{ fontSize: 22, lineHeight: 1 }}>📎</span>
+                      <span
+                        style={{
+                          marginTop: 4,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                        }}
+                      >
+                        {file.name}
+                      </span>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeAttachedFile(i)}
+                    aria-label={`Remove ${file.name}`}
+                    disabled={sending}
+                    style={{
+                      position: 'absolute',
+                      top: 4,
+                      right: 4,
+                      width: 22,
+                      height: 22,
+                      borderRadius: '50%',
+                      border: 'none',
+                      background: 'rgba(0,0,0,0.72)',
+                      color: '#fff',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: sending ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      lineHeight: 1,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -1226,6 +1401,7 @@ export default function VoiceChat({
         ref={fileInputRef}
         type="file"
         accept={ATTACH_ACCEPT}
+        multiple
         onChange={onPickFile}
         style={{ display: 'none' }}
       />

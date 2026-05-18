@@ -65,13 +65,13 @@ Rules:
    d. If the user is silent, unclear, hesitant, or says no, DO NOT call delete_tire. Ask again or abandon the deletion.
    e. Never call delete_tire in the same turn you first mention deletion — confirmation must come from the user in a separate turn.
 ${shopRule}
-9. FILE ATTACHMENTS — ALWAYS CONFIRM BEFORE ADDING. When the user attaches a file (image, PDF, or spreadsheet), they are typically asking you to extract tire entries from it. You MUST:
-   a. Read the file carefully and extract every tire entry you can identify (brand, model, size, season, condition, tread, quantity, price).
+9. FILE ATTACHMENTS — ALWAYS CONFIRM BEFORE ADDING. When the user attaches one or more files (images, PDFs, or spreadsheets), they are typically asking you to extract tire entries from them. You MUST:
+   a. Read the files carefully and extract every tire entry you can identify (brand, model, size, season, condition, tread, quantity, price).
    b. Present a clear numbered list back to the user showing what you found. Keep it short and readable since the reply is spoken aloud.
    c. Ask the user to confirm before saving — e.g. "I found 12 tires. Should I add them all? Say yes to confirm."
    d. ONLY after the user replies with a clear affirmative in a SEPARATE turn may you call add_tire — once per row.
    e. NEVER call add_tire in the same turn you announce what you found from a file. This is critical for spreadsheets that may contain many rows.
-   f. If the user uploaded an image of ONE specific tire (not a spreadsheet of many), and a system note in the message gave you a photo_url, include that photo_url in your add_tire call so the photo is saved against the new tire.
+   f. If the user uploaded one or more images of ONE specific tire (not a spreadsheet of many entries), the system notes give you each image's URL. When calling add_tire: use photo_url="<url>" if a single image was attached, or photo_urls=["<url1>","<url2>",...] if MULTIPLE images of the same tire were attached. All listed photos are saved against the new tire.
 10. BUG REPORTS: If the user reports a problem with the app or asks you to log/file a bug (e.g. "report a bug: the photo upload failed", "log an issue", "this is broken — track it"), call the report_bug tool with a concise description that captures the issue. Confirm to the user that the bug was logged. Ask for clarification only if their description is too vague to be useful — short reports are fine.
 11. EMPLOYEE INTRODUCTION: At the start of the conversation the user has already seen a greeting from you saying "Welcome to BuySell Tires ${currentShop}! Who am I speaking with?" (or "Welcome back, [name]!" if they've used the app this session). Their FIRST message will usually be their name (e.g. "I'm Dave", "this is Sarah", or just "Dave").
    a. When they introduce themselves, IMMEDIATELY call set_employee_name with their first name.
@@ -85,13 +85,13 @@ ${shopRule}
    c. ONLY after the user replies with a clear yes in a SEPARATE turn may you call update_tire with the status field.
    d. If the user is unclear or says no, do NOT change the status. Ask again or move on.
    e. SOLD is the most consequential status — be sure the user wants to retire that exact tire before confirming.
-13. ATTACHING A PHOTO TO AN EXISTING TIRE. When a photo is uploaded AND the user asks to add it to a tire ALREADY in inventory (e.g. "add this photo to tire-25", "this is for the Michelin we have", "attach this to that one we just looked at"):
+13. ATTACHING PHOTO(S) TO AN EXISTING TIRE. When one or more photos are uploaded AND the user asks to add them to a tire ALREADY in inventory (e.g. "add this photo to tire-25", "attach these to the Michelin we have", "these go with that one we just looked at"):
    a. Identify the specific tire — either by the friendly id the user said, or via search_tires if you need to look it up.
-   b. Confirm with the user, naming the tire: "Attach this photo to tire-25 (Michelin X-Ice 225/65R17)? Say yes to confirm."
-   c. ONLY after the user replies with a clear yes in a SEPARATE turn may you call attach_photo_to_tire with the tire's id and the photo_url from the system note.
-   d. This ADDS the photo to the tire's gallery — it does not replace existing photos. Tires can have many photos.
-   e. Distinguish from rule 9.f: if the user wants to CREATE a new tire from the photo, use add_tire with photo_url instead. Ask if you're unsure.
-   f. Don't paste the URL back to the user — they don't need to see it.`;
+   b. Confirm with the user, naming the tire and saying how many photos: "Attach this photo to tire-25 (Michelin X-Ice 225/65R17)?" or "Attach these 3 photos to tire-25? Say yes to confirm."
+   c. ONLY after the user replies with a clear yes in a SEPARATE turn may you call attach_photo_to_tire with the tire's id and EITHER photo_url="<url>" (single image) OR photo_urls=["<url1>","<url2>",...] (multiple images, taken from all the system notes in the message that delivered them).
+   d. This ADDS photos to the tire's gallery — it does not replace existing photos. Tires can have many photos.
+   e. Distinguish from rule 9.f: if the user wants to CREATE a new tire from the photo(s), use add_tire with photo_url / photo_urls instead. Ask if you're unsure.
+   f. Don't paste URLs back to the user — they don't need to see them.`;
 }
 
 const TOOLS = [
@@ -118,7 +118,7 @@ const TOOLS = [
   {
     name: 'add_tire',
     description:
-      'Insert a new tire row. ALL fields are optional — save whatever the user gave. The tool returns the inserted row plus a list of which recommended fields were missing, so you can tell the user what to fill in later. If a system note in the message gave you a photo_url for an uploaded image of one specific tire, include photo_url here to attach the photo to the new tire.',
+      'Insert a new tire row. ALL fields are optional — save whatever the user gave. The tool returns the inserted row plus a list of which recommended fields were missing, so you can tell the user what to fill in later. If system notes in the user message gave you photo URLs for one or more uploaded images of this specific tire, include them via photo_url (single image) or photo_urls (multiple) so they\'re attached to the new tire.',
     input_schema: {
       type: 'object',
       properties: {
@@ -132,7 +132,12 @@ const TOOLS = [
         quantity: { type: 'number' },
         price: { type: 'number' },
         notes: { type: 'string' },
-        photo_url: { type: 'string', description: 'If a photo was uploaded for this single tire (system note will tell you the URL), include it here. Skip for bulk-from-spreadsheet adds.' },
+        photo_url: { type: 'string', description: 'Single photo URL when exactly one image was uploaded for this tire. The URL comes from a system note in the user message. Skip for bulk-from-spreadsheet adds.' },
+        photo_urls: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Multiple photo URLs when several images were uploaded for the SAME new tire. Include EVERY URL from the system notes in this message. All listed photos are attached to the new tire.',
+        },
       },
     },
   },
@@ -173,14 +178,19 @@ const TOOLS = [
   {
     name: 'attach_photo_to_tire',
     description:
-      'Attach a previously-uploaded photo to an EXISTING tire. Use this when the user uploads a photo and asks to add it to a tire already in inventory (e.g. "add this photo to tire-25"). The photo URL comes from the system note in the user message that delivered the upload. ALWAYS confirm with the user which tire before calling this tool. The photo is added to the tire\'s gallery — it does not replace existing photos.',
+      'Attach one or more previously-uploaded photos to an EXISTING tire. Use this when the user uploads photos and asks to add them to a tire already in inventory (e.g. "add this photo to tire-25", "attach these to the Michelin"). The photo URLs come from the system notes in the user message that delivered the uploads. ALWAYS confirm with the user which tire before calling this tool. The photos are added to the tire\'s gallery — they do not replace existing photos. Provide EITHER photo_url (single image) OR photo_urls (multiple images, all in one call) — at least one is required.',
     input_schema: {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'The tire id — either the uuid or the friendly id like "tire-25".' },
-        photo_url: { type: 'string', description: 'The photo URL from the system note (must be from the tire-photos storage bucket).' },
+        photo_url: { type: 'string', description: 'Single photo URL from a system note (must be from the tire-photos storage bucket). Use this OR photo_urls.' },
+        photo_urls: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Multiple photo URLs (from the system notes in this message) to attach in one call. All listed photos are added to the tire. Use this OR photo_url.',
+        },
       },
-      required: ['id', 'photo_url'],
+      required: ['id'],
     },
   },
   {
@@ -282,6 +292,29 @@ async function runSearchTires(input: ToolInput) {
   return { count: rows.length, rows };
 }
 
+/**
+ * Collect every distinct photo URL passed via the singular `photo_url` field,
+ * the plural `photo_urls` field, or both. Order is preserved (first occurrence
+ * wins); duplicates and non-strings are dropped. Used by add_tire and
+ * attach_photo_to_tire to support multi-photo uploads in a single tool call.
+ */
+function collectPhotoUrls(input: ToolInput): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: unknown) => {
+    if (typeof raw !== 'string') return;
+    const trimmed = raw.trim();
+    if (!trimmed || seen.has(trimmed)) return;
+    seen.add(trimmed);
+    out.push(trimmed);
+  };
+  if (Array.isArray(input.photo_urls)) {
+    for (const u of input.photo_urls) push(u);
+  }
+  push(input.photo_url);
+  return out;
+}
+
 async function runAddTire(
   input: ToolInput,
   currentShop: string,
@@ -296,25 +329,31 @@ async function runAddTire(
   if (!row.shop && currentShop && currentShop !== UNASSIGNED_SHOP) {
     row.shop = currentShop;
   }
-  const photoUrl = typeof input.photo_url === 'string' && input.photo_url.trim()
-    ? input.photo_url.trim()
-    : null;
+  const photoUrls = collectPhotoUrls(input);
 
   const missing = RECOMMENDED_FIELDS.filter((f) => row[f] === undefined);
   const { data, error } = await supabase.from('tires').insert(row).select().single();
   if (error) return { error: error.message, missing };
 
-  // Attach the uploaded photo to the new tire if the AI passed one.
-  if (photoUrl && data?.id) {
-    try {
-      await supabase.from('tire_photos').insert({ tire_id: data.id, url: photoUrl });
-    } catch (e) {
-      console.error('tire_photos insert failed', e);
+  // Attach all uploaded photos to the new tire (preserves the order the AI
+  // listed them in, which mirrors the order the user attached them).
+  let photosAttached = 0;
+  if (photoUrls.length > 0 && data?.id) {
+    for (const url of photoUrls) {
+      try {
+        const { error: photoErr } = await supabase
+          .from('tire_photos')
+          .insert({ tire_id: data.id, url });
+        if (!photoErr) photosAttached++;
+        else console.error('tire_photos insert failed', photoErr);
+      } catch (e) {
+        console.error('tire_photos insert threw', e);
+      }
     }
   }
 
   await insertActivityLog({ action: 'added', tire: data, source, userEmail, employeeName });
-  return { inserted: data, missing, photo_attached: !!photoUrl };
+  return { inserted: data, missing, photos_attached: photosAttached };
 }
 
 async function runUpdateTire(
@@ -371,16 +410,18 @@ async function runAttachPhotoToTire(
   const id = await resolveTireId(rawId);
   if (!id) return { error: `tire not found: "${rawId}"` };
 
-  const photoUrl =
-    typeof input.photo_url === 'string' ? input.photo_url.trim() : '';
-  if (!photoUrl) return { error: 'photo_url is required' };
-  // Light validation: the URL must look like a Supabase Storage URL pointing
+  const photoUrls = collectPhotoUrls(input);
+  if (photoUrls.length === 0) {
+    return { error: 'photo_url or photo_urls is required' };
+  }
+  // Light validation: each URL must look like a Supabase Storage URL pointing
   // at the tire-photos bucket. Catches model hallucinations like "tire-25.jpg".
-  if (!photoUrl.startsWith('http') || !photoUrl.includes('/tire-photos/')) {
-    return {
-      error:
-        'invalid photo_url — must be a public URL from the tire-photos storage bucket (provided in the system note)',
-    };
+  for (const url of photoUrls) {
+    if (!url.startsWith('http') || !url.includes('/tire-photos/')) {
+      return {
+        error: `invalid photo URL "${url}" — must be a public URL from the tire-photos storage bucket (provided in a system note)`,
+      };
+    }
   }
 
   // Fetch the tire so we can return it (and use it for the activity log).
@@ -393,15 +434,28 @@ async function runAttachPhotoToTire(
     return { error: `tire not found after resolve: "${rawId}"` };
   }
 
-  const { data: photo, error: insertError } = await supabase
-    .from('tire_photos')
-    .insert({ tire_id: id, url: photoUrl })
-    .select()
-    .single();
-  if (insertError) return { error: insertError.message };
+  const attached: Array<Record<string, unknown>> = [];
+  const failed: string[] = [];
+  for (const url of photoUrls) {
+    const { data: photo, error: insertError } = await supabase
+      .from('tire_photos')
+      .insert({ tire_id: id, url })
+      .select()
+      .single();
+    if (insertError) {
+      failed.push(url);
+      console.error('tire_photos insert failed', insertError);
+    } else if (photo) {
+      attached.push(photo as Record<string, unknown>);
+    }
+  }
+
+  if (attached.length === 0) {
+    return { error: 'no photos were attached', failed };
+  }
 
   // Treat photo attachment as an edit for activity logging purposes — same
-  // shape as other tire updates.
+  // shape as other tire updates. One log entry covers the whole batch.
   await insertActivityLog({
     action: 'edited',
     tire,
@@ -410,7 +464,7 @@ async function runAttachPhotoToTire(
     employeeName,
   });
 
-  return { attached: photo, tire };
+  return { attached, photos_attached: attached.length, tire, failed };
 }
 
 async function runSetEmployeeName(input: ToolInput) {
@@ -566,10 +620,10 @@ async function buildAttachmentBlocks(att: AttachmentInput): Promise<ContentBlock
       });
       blocks.push({
         type: 'text',
-        text: `[System note: This image was uploaded and stored at "${photoUrl}". When the user wants to use this photo, two paths:
- - ADDING A NEW TIRE from this image: include photo_url="${photoUrl}" in your add_tire call.
- - ATTACHING TO AN EXISTING TIRE (e.g. "add this to tire-25", "this is for the Michelin"): use the attach_photo_to_tire tool with the tire's id and photo_url="${photoUrl}".
-Always confirm the specific tire with the user before either action. Do not repeat the URL back to the user — it's just internal context.]`,
+        text: `[System note: An image was uploaded and stored at "${photoUrl}". When the user wants to use uploaded photos:
+ - ADDING A NEW TIRE: call add_tire with photo_url="${photoUrl}" if this is the only image attached, OR with photo_urls=["${photoUrl}", ...] including every URL from the system notes in this message if multiple images of the same tire were attached.
+ - ATTACHING TO AN EXISTING TIRE (e.g. "add this to tire-25", "these are for the Michelin"): call attach_photo_to_tire with the tire's id and either photo_url="${photoUrl}" (single image) or photo_urls=["${photoUrl}", ...] (multiple).
+If this message contains several "image was uploaded" notes, that means several images were attached at once — gather ALL their URLs into photo_urls in a SINGLE tool call rather than calling the tool repeatedly. Always confirm the specific tire with the user before either action. Do not repeat URLs back to the user — they're just internal context.]`,
       });
     } else if (att.base64) {
       // Fallback when there's no URL — older clients or unusual flows.
@@ -795,7 +849,14 @@ export async function POST(req: NextRequest) {
     currentUserEmail?: string;
     employeeName?: string;
     hasFileInSession?: boolean;
+    /** Legacy single-attachment field. Still accepted for backward compat. */
     attachment?: AttachmentInput;
+    /**
+     * Preferred multi-attachment field — the user can attach several photos
+     * (and/or a PDF/spreadsheet) in one chat message. Each entry becomes its
+     * own content block on the last user message.
+     */
+    attachments?: AttachmentInput[];
   };
   try {
     body = await req.json();
@@ -820,22 +881,33 @@ export async function POST(req: NextRequest) {
       ? body.employeeName.trim()
       : null;
 
-  // If the client sent a fresh attachment, fold its content blocks into the
-  // last user message before we hand the conversation to Anthropic.
-  // Either base64 (PDFs / spreadsheets) or photoUrl (images) is enough.
-  if (
-    body.attachment &&
-    (body.attachment.base64 || body.attachment.photoUrl) &&
-    messages.length > 0
-  ) {
+  // If the client sent fresh attachments, fold their content blocks into the
+  // last user message before we hand the conversation to Anthropic. Accepts
+  // both the plural `attachments` array (new clients, multi-upload) and the
+  // legacy singular `attachment` field. Each attachment needs either base64
+  // (PDFs / spreadsheets) or photoUrl (images) to be usable.
+  const attachmentList: AttachmentInput[] = [];
+  if (Array.isArray(body.attachments)) {
+    for (const a of body.attachments) {
+      if (a && (a.base64 || a.photoUrl)) attachmentList.push(a);
+    }
+  }
+  if (body.attachment && (body.attachment.base64 || body.attachment.photoUrl)) {
+    attachmentList.push(body.attachment);
+  }
+  if (attachmentList.length > 0 && messages.length > 0) {
     const lastIdx = messages.length - 1;
     const last = messages[lastIdx];
     if (last && last.role === 'user') {
-      const fileBlocks = await buildAttachmentBlocks(body.attachment);
+      const allFileBlocks: ContentBlock[] = [];
+      for (const att of attachmentList) {
+        const blocks = await buildAttachmentBlocks(att);
+        allFileBlocks.push(...blocks);
+      }
       const existingBlocks: ContentBlock[] = typeof last.content === 'string'
         ? (last.content ? [{ type: 'text', text: last.content }] : [])
         : last.content;
-      last.content = [...existingBlocks, ...fileBlocks];
+      last.content = [...existingBlocks, ...allFileBlocks];
     }
   }
 
