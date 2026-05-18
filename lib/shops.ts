@@ -3,7 +3,7 @@ export const UNASSIGNED_SHOP = 'Unassigned';
 // One row per shop login. Add a new login here when a new shop is onboarded.
 const EMAIL_TO_SHOP: Record<string, string> = {
   'buyselltiresmission@gmail.com': 'Mission',
-  'buyselltiresautogrove@gmail.com': 'Autogrove',
+  'buyselltiresaldergrove@gmail.com': 'Aldergrove',
   'buyselltireslethbridge@gmail.com': 'Lethbridge',
 };
 
