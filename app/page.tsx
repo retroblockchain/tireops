@@ -5,6 +5,7 @@ import { APP_VERSION } from '../lib/version';
 import { COLORS } from '../lib/theme';
 import { loadFirstPhotosByTire } from '../lib/photos';
 import { useCurrentShop } from '../lib/useCurrentShop';
+import { isStale, STALE_STYLE } from '../lib/tireStatus';
 import { TireCard } from './components/TireCard';
 import VoiceChat from './components/VoiceChat';
 
@@ -16,6 +17,7 @@ export default function Home() {
   const [photosByTire, setPhotosByTire] = useState<Map<string, string>>(
     new Map(),
   );
+  const [staleOnly, setStaleOnly] = useState(false);
   const currentShop = useCurrentShop();
 
   useEffect(() => {
@@ -27,13 +29,19 @@ export default function Home() {
     loadFirstPhotosByTire().then(setPhotosByTire);
   }, []);
 
-  const shown = tires.filter((t) => {
-    const friendly = t.tire_number != null ? `tire-${t.tire_number}` : '';
-    const text =
-      `${friendly} ${t.brand} ${t.model} ${t.size} ${t.season} ${t.shop}`.toLowerCase();
-    return text.includes(q.toLowerCase());
-  });
-  const recent = tires.slice(0, RECENT_COUNT);
+  // Sold tires live on their own page — keep them out of the main views.
+  const liveTires = tires.filter((t) => t.status !== 'sold');
+  const staleCount = liveTires.filter((t) => isStale(t.created_at, t.status))
+    .length;
+  const shown = liveTires
+    .filter((t) => {
+      const friendly = t.tire_number != null ? `tire-${t.tire_number}` : '';
+      const text =
+        `${friendly} ${t.brand} ${t.model} ${t.size} ${t.season} ${t.shop}`.toLowerCase();
+      return text.includes(q.toLowerCase());
+    })
+    .filter((t) => (staleOnly ? isStale(t.created_at, t.status) : true));
+  const recent = liveTires.slice(0, RECENT_COUNT);
 
   return (
     <main
@@ -119,7 +127,7 @@ export default function Home() {
         <a
           href="/add"
           style={{
-            flex: '1 1 160px',
+            flex: '1 1 140px',
             textAlign: 'center',
             padding: '12px 14px',
             background: COLORS.red,
@@ -136,7 +144,7 @@ export default function Home() {
         <a
           href="/history"
           style={{
-            flex: '1 1 160px',
+            flex: '1 1 140px',
             textAlign: 'center',
             padding: '12px 14px',
             background: COLORS.surface,
@@ -150,6 +158,24 @@ export default function Home() {
           }}
         >
           📋 History
+        </a>
+        <a
+          href="/sold"
+          style={{
+            flex: '1 1 140px',
+            textAlign: 'center',
+            padding: '12px 14px',
+            background: COLORS.surface,
+            color: COLORS.red,
+            border: `2px solid ${COLORS.red}`,
+            borderRadius: 8,
+            textDecoration: 'none',
+            fontWeight: 700,
+            fontSize: 15,
+            boxSizing: 'border-box',
+          }}
+        >
+          🚚 Sold
         </a>
       </div>
 
@@ -206,9 +232,43 @@ export default function Home() {
             color: COLORS.ink,
           }}
         />
-        <p style={{ color: COLORS.textMuted, fontSize: 13, margin: '0 0 10px' }}>
-          {shown.length} {shown.length === 1 ? 'tire' : 'tires'}
-        </p>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            margin: '0 0 10px',
+            flexWrap: 'wrap',
+          }}
+        >
+          <p style={{ color: COLORS.textMuted, fontSize: 13, margin: 0 }}>
+            {shown.length} {shown.length === 1 ? 'tire' : 'tires'}
+            {staleOnly && ` (aging 90+ days)`}
+          </p>
+          {staleCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setStaleOnly((v) => !v)}
+              aria-pressed={staleOnly}
+              style={{
+                fontSize: 12,
+                padding: '4px 10px',
+                background: staleOnly ? STALE_STYLE.color : 'transparent',
+                color: staleOnly ? '#1a1a1a' : STALE_STYLE.color,
+                border: `1px solid ${STALE_STYLE.border}`,
+                borderRadius: 999,
+                cursor: 'pointer',
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {staleOnly
+                ? `Showing aging (${staleCount}) — clear`
+                : `⚠ ${staleCount} aging — view`}
+            </button>
+          )}
+        </div>
         {shown.length === 0 && (
           <div
             style={{

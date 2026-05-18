@@ -27,7 +27,9 @@ function buildSystemPrompt(currentShop: string): string {
 The 'tires' table has these columns:
 - id (uuid, auto), tire_number (bigint, auto — shown to users as "tire-N", e.g. "tire-25"), shop (text), brand (text), model (text), size (text, e.g. "225/65R17"),
   season (text: "summer" | "winter" | "all-season"), condition (text: "new" | "used"),
-  tread_pct (number 0-100), quantity (number), price (number), notes (text), is_complete (bool, auto), created_at, updated_at.
+  tread_pct (number 0-100), quantity (number), price (number), notes (text),
+  status (text: "available" | "reserved" | "pending" | "sold" — defaults to "available". SOLD tires are removed from the main inventory list and live in a separate "Recently sold" view),
+  is_complete (bool, auto), created_at, updated_at.
 
 Users often refer to a tire by its friendly id like "tire-25" or "tire 3". In search_tires, filter via tire_number (a number) or friendly_id (a string like "tire-25"). In update_tire / delete_tire, the id field accepts EITHER the uuid OR the friendly id "tire-N" — the server resolves it. When confirming actions back to the user, prefer the friendly id ("tire-25") over the uuid.
 
@@ -58,7 +60,13 @@ ${shopRule}
    b. Then briefly acknowledge them by name and ask how you can help — keep it to one short sentence.
    c. Do NOT repeat the welcome greeting yourself.
    d. After that, occasionally use their name when it feels natural, but don't overdo it.
-   e. If their first message is a regular question instead of an introduction, proceed normally and don't call set_employee_name unless they introduce themselves later.`;
+   e. If their first message is a regular question instead of an introduction, proceed normally and don't call set_employee_name unless they introduce themselves later.
+12. STATUS CHANGES REQUIRE EXPLICIT USER CONFIRMATION. When the user asks you to change a tire's status (e.g. "mark tire-25 as sold", "reserve the Michelins for a customer", "set tire-3 to pending"):
+   a. Find the tire first (via search_tires if you don't already know it from this conversation).
+   b. Describe the change clearly: "I'll mark tire-25 (Michelin X-Ice 225/65R17) as SOLD. That will move it out of the main inventory list. Confirm?" Adapt the wording for reserved/pending/available — for SOLD, always mention it leaves the main list.
+   c. ONLY after the user replies with a clear yes in a SEPARATE turn may you call update_tire with the status field.
+   d. If the user is unclear or says no, do NOT change the status. Ask again or move on.
+   e. SOLD is the most consequential status — be sure the user wants to retire that exact tire before confirming.`;
 }
 
 const TOOLS = [
@@ -105,7 +113,7 @@ const TOOLS = [
   },
   {
     name: 'update_tire',
-    description: 'Update an existing tire. Provide only the fields to change. The id accepts EITHER the internal uuid OR a friendly id like "tire-25".',
+    description: 'Update an existing tire. Provide only the fields to change. The id accepts EITHER the internal uuid OR a friendly id like "tire-25". For status changes, only call this AFTER the user has explicitly confirmed (see rule 12).',
     input_schema: {
       type: 'object',
       properties: {
@@ -120,6 +128,7 @@ const TOOLS = [
         quantity: { type: 'number' },
         price: { type: 'number' },
         notes: { type: 'string' },
+        status: { type: 'string', description: 'Tire status: "available", "reserved", "pending", or "sold". Marking SOLD removes the tire from the main inventory list.' },
       },
       required: ['id'],
     },
@@ -281,7 +290,7 @@ async function runUpdateTire(
   const id = await resolveTireId(rawId);
   if (!id) return { error: `tire not found: "${rawId}"` };
   const patch: Record<string, unknown> = {};
-  for (const f of ['shop', 'brand', 'model', 'size', 'season', 'condition', 'tread_pct', 'quantity', 'price', 'notes']) {
+  for (const f of ['shop', 'brand', 'model', 'size', 'season', 'condition', 'tread_pct', 'quantity', 'price', 'notes', 'status']) {
     if (input[f] !== undefined && input[f] !== null && input[f] !== '') patch[f] = input[f];
   }
   if (Object.keys(patch).length === 0) return { error: 'no fields to update' };

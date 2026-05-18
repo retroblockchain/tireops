@@ -1,5 +1,11 @@
 'use client';
 import { COLORS } from '../../lib/theme';
+import {
+  STALE_STYLE,
+  daysInStock,
+  isStale,
+  statusStyle,
+} from '../../lib/tireStatus';
 
 type Tire = {
   id: string;
@@ -12,6 +18,8 @@ type Tire = {
   condition?: string | null;
   quantity?: number | string | null;
   price?: number | string | null;
+  status?: string | null;
+  created_at?: string | null;
 };
 
 type Props = {
@@ -132,6 +140,42 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
               alignItems: 'center',
             }}
           >
+            {t.status && t.status !== 'available' && (() => {
+              const s = statusStyle(t.status);
+              return (
+                <span
+                  style={{
+                    fontSize: 11,
+                    padding: '3px 8px',
+                    borderRadius: 99,
+                    background: 'transparent',
+                    color: s.color,
+                    border: `1px solid ${s.border}`,
+                    fontWeight: 700,
+                    letterSpacing: 0.4,
+                  }}
+                >
+                  {s.label}
+                </span>
+              );
+            })()}
+            {isStale(t.created_at, t.status) && (
+              <span
+                style={{
+                  fontSize: 11,
+                  padding: '3px 8px',
+                  borderRadius: 99,
+                  background: 'transparent',
+                  color: STALE_STYLE.color,
+                  border: `1px solid ${STALE_STYLE.border}`,
+                  fontWeight: 700,
+                  letterSpacing: 0.3,
+                }}
+                title={`In stock ${daysInStock(t.created_at)} days`}
+              >
+                ⚠ {daysInStock(t.created_at)}d
+              </span>
+            )}
             {t.season && (
               <span
                 style={{

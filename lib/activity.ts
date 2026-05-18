@@ -27,9 +27,15 @@ export function tireDescription(t: any): string {
   const brandModel = [t.brand, t.model].filter(Boolean).join(' ').trim();
   const size = (t.size || '').toString().trim();
   const main = [brandModel, size].filter(Boolean).join(' ').trim();
-  if (friendly && main) return `${friendly} — ${main}`;
-  if (friendly) return friendly;
-  if (main) return main;
+  // Surface non-default status in the activity log description, so a log entry
+  // like "EDITED — tire-25 — Michelin X-Ice 225/65R17 [SOLD]" reads naturally.
+  const statusTag =
+    t.status && t.status !== 'available'
+      ? ` [${String(t.status).toUpperCase()}]`
+      : '';
+  if (friendly && main) return `${friendly} — ${main}${statusTag}`;
+  if (friendly) return `${friendly}${statusTag}`;
+  if (main) return `${main}${statusTag}`;
   if (t.id) return `tire ${String(t.id).slice(0, 8)}`;
   return 'tire';
 }

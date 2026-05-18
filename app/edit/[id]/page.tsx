@@ -11,6 +11,7 @@ import {
 } from '../../../lib/photos';
 import { useCurrentShop } from '../../../lib/useCurrentShop';
 import { logActivity } from '../../../lib/activity';
+import { TIRE_STATUSES, statusStyle } from '../../../lib/tireStatus';
 
 type Field = { key: string; label: string; type?: string };
 const FIELDS: Field[] = [
@@ -76,6 +77,7 @@ export default function EditTire() {
       quantity: tire.quantity,
       price: tire.price,
       notes: tire.notes,
+      status: tire.status || 'available',
     };
     const { data: updated } = await supabase
       .from('tires')
@@ -234,6 +236,55 @@ export default function EditTire() {
           />
         </div>
       ))}
+
+      {/* STATUS */}
+      <div style={{ marginBottom: 16 }}>
+        <label
+          style={{
+            display: 'block',
+            fontSize: 13,
+            color: COLORS.textBody,
+            fontWeight: 600,
+            marginBottom: 6,
+          }}
+        >
+          Status
+        </label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {TIRE_STATUSES.map((s) => {
+            const active = (tire.status || 'available') === s;
+            const ss = statusStyle(s);
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setTire({ ...tire, status: s })}
+                aria-pressed={active}
+                style={{
+                  flex: '1 1 80px',
+                  padding: '10px 12px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.3,
+                  background: 'transparent',
+                  color: active ? ss.color : COLORS.textMuted,
+                  border: `1px solid ${
+                    active ? ss.border : COLORS.borderStrong
+                  }`,
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  boxShadow: active
+                    ? `inset 0 0 0 1px ${ss.border}`
+                    : 'none',
+                }}
+              >
+                {s}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* PHOTOS */}
       <div style={{ marginTop: 18, marginBottom: 12 }}>
