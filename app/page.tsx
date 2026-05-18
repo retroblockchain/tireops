@@ -134,6 +134,136 @@ export default function Home() {
         </button>
       </header>
 
+      {/*
+        Top menu bar — sits directly under the header and visually distinct
+        from it (a "tray" with its own surface background, subtle border, and
+        soft drop-shadow). Four equal-width buttons via flex:1 + min-width:0,
+        nowrap + ellipsis as safety on the narrowest Androids. Add tire keeps
+        the red accent as the primary action; the rest are quiet text-only
+        items that read as menu entries inside the tray.
+      */}
+      <nav
+        aria-label="Main"
+        style={{
+          display: 'flex',
+          gap: 4,
+          alignItems: 'stretch',
+          width: '100%',
+          padding: 4,
+          background: COLORS.surface,
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: RADII.control,
+          boxShadow: SHADOWS.card,
+          marginBottom: 16,
+          boxSizing: 'border-box',
+        }}
+      >
+        <a
+          href="/add"
+          style={{
+            flex: '1 1 0',
+            minWidth: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '8px 6px',
+            background: COLORS.red,
+            color: '#fff',
+            border: 'none',
+            borderRadius: 8,
+            textDecoration: 'none',
+            fontWeight: 700,
+            fontSize: 12,
+            letterSpacing: 0.1,
+            lineHeight: 1.3,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            boxSizing: 'border-box',
+          }}
+        >
+          + Add tire
+        </a>
+        <a
+          href="/inventory"
+          style={{
+            flex: '1 1 0',
+            minWidth: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '8px 6px',
+            background: 'transparent',
+            color: COLORS.textBody,
+            border: 'none',
+            borderRadius: 8,
+            textDecoration: 'none',
+            fontWeight: 600,
+            fontSize: 12,
+            letterSpacing: 0.1,
+            lineHeight: 1.3,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            boxSizing: 'border-box',
+          }}
+        >
+          All tires
+        </a>
+        <a
+          href="/history"
+          style={{
+            flex: '1 1 0',
+            minWidth: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '8px 6px',
+            background: 'transparent',
+            color: COLORS.textBody,
+            border: 'none',
+            borderRadius: 8,
+            textDecoration: 'none',
+            fontWeight: 600,
+            fontSize: 12,
+            letterSpacing: 0.1,
+            lineHeight: 1.3,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            boxSizing: 'border-box',
+          }}
+        >
+          History
+        </a>
+        <a
+          href="/sold"
+          style={{
+            flex: '1 1 0',
+            minWidth: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '8px 6px',
+            background: 'transparent',
+            color: COLORS.textBody,
+            border: 'none',
+            borderRadius: 8,
+            textDecoration: 'none',
+            fontWeight: 600,
+            fontSize: 12,
+            letterSpacing: 0.1,
+            lineHeight: 1.3,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            boxSizing: 'border-box',
+          }}
+        >
+          Sold
+        </a>
+      </nav>
+
       {/* ----- AI chat: the obvious primary thing when the app opens ----- */}
       <VoiceChat variant="embedded" />
 
@@ -251,130 +381,6 @@ export default function Home() {
               Total
             </div>
           </div>
-        </div>
-      </section>
-
-      {/*
-        Nav — four equal-width pills on a single row. flex:1 with min-width:0
-        + nowrap + ellipsis safety keeps them on one line on a narrow Android
-        screen (360px-ish). Emojis dropped from the secondary buttons to
-        leave room for the labels; "+" is kept on Add tire as a clear "new"
-        affordance. The home page itself no longer has a search box — full
-        inventory search lives behind the "All tires" pill.
-      */}
-      <section style={{ marginBottom: 18 }}>
-        <div
-          style={{
-            display: 'flex',
-            gap: 6,
-            alignItems: 'stretch',
-            width: '100%',
-          }}
-        >
-          <a
-            href="/add"
-            style={{
-              flex: '1 1 0',
-              minWidth: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '8px 6px',
-              background: COLORS.red,
-              color: '#fff',
-              border: 'none',
-              borderRadius: RADII.pill,
-              textDecoration: 'none',
-              fontWeight: 700,
-              fontSize: 12,
-              letterSpacing: 0.1,
-              lineHeight: 1.3,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              boxSizing: 'border-box',
-            }}
-          >
-            + Add tire
-          </a>
-          <a
-            href="/inventory"
-            style={{
-              flex: '1 1 0',
-              minWidth: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '8px 6px',
-              background: 'transparent',
-              color: COLORS.textBody,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: RADII.pill,
-              textDecoration: 'none',
-              fontWeight: 600,
-              fontSize: 12,
-              letterSpacing: 0.1,
-              lineHeight: 1.3,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              boxSizing: 'border-box',
-            }}
-          >
-            All tires
-          </a>
-          <a
-            href="/history"
-            style={{
-              flex: '1 1 0',
-              minWidth: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '8px 6px',
-              background: 'transparent',
-              color: COLORS.textBody,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: RADII.pill,
-              textDecoration: 'none',
-              fontWeight: 600,
-              fontSize: 12,
-              letterSpacing: 0.1,
-              lineHeight: 1.3,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              boxSizing: 'border-box',
-            }}
-          >
-            History
-          </a>
-          <a
-            href="/sold"
-            style={{
-              flex: '1 1 0',
-              minWidth: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '8px 6px',
-              background: 'transparent',
-              color: COLORS.textBody,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: RADII.pill,
-              textDecoration: 'none',
-              fontWeight: 600,
-              fontSize: 12,
-              letterSpacing: 0.1,
-              lineHeight: 1.3,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              boxSizing: 'border-box',
-            }}
-          >
-            Sold
-          </a>
         </div>
       </section>
 
