@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { compressImage } from './imageCompress';
 
 export type TirePhoto = {
   id: string;
@@ -28,32 +29,44 @@ export async function uploadTirePhoto(
   file: File,
   tireId: string,
 ): Promise<TirePhoto | null> {
-  const ext = extFor(file);
-  const path = `${tireId}/${Date.now()}-${randomToken()}.${ext}`;
-  const { error: uploadError } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, file, {
-      cacheControl: '3600',
-      upsert: false,
-      contentType: file.type || `image/${ext}`,
-    });
-  if (uploadError) {
-    console.error('photo upload failed', uploadError);
-    return null;
-  }
-  const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  const url = pub.publicUrl;
+  try {
+    // Resize/recompress before upload. Phone-camera photos can be 4–10 MB;
+    // after this they're typically 200–500 KB.
+    const prepared = await compressImage(file);
+    const ext = extFor(prepared);
+    const path = `${tireId}/${Date.now()}-${randomToken()}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, prepared, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: prepared.type || `image/${ext}`,
+      });
+    if (uploadError) {
+      console.error('photo upload failed', uploadError);
+      return null;
+    }
+    const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
+    const url = pub.publicUrl;
 
-  const { data, error } = await supabase
-    .from('tire_photos')
-    .insert({ tire_id: tireId, url })
-    .select()
-    .single();
-  if (error) {
-    console.error('photo row insert failed', error);
+    const { data, error } = await supabase
+      .from('tire_photos')
+      .insert({ tire_id: tireId, url })
+      .select()
+      .single();
+    if (error) {
+      console.error('photo row insert failed', error);
+      return null;
+    }
+    return data as TirePhoto;
+  } catch (e) {
+    // The supabase client occasionally throws (e.g. when a proxy/CDN
+    // returns a non-JSON response and the client tries to parse it).
+    // Treat that as a failed upload rather than letting "Unexpected
+    // token" bubble all the way to the user.
+    console.error('uploadTirePhoto threw', e);
     return null;
   }
-  return data as TirePhoto;
 }
 
 /**
@@ -66,21 +79,27 @@ export async function uploadTirePhoto(
  * matches the auth-tier that the bucket's RLS allows for uploads.
  */
 export async function uploadPendingPhoto(file: File): Promise<string | null> {
-  const ext = extFor(file);
-  const path = `pending/${Date.now()}-${randomToken()}.${ext}`;
-  const { error: uploadError } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, file, {
-      cacheControl: '3600',
-      upsert: false,
-      contentType: file.type || `image/${ext}`,
-    });
-  if (uploadError) {
-    console.error('pending photo upload failed', uploadError);
+  try {
+    const prepared = await compressImage(file);
+    const ext = extFor(prepared);
+    const path = `pending/${Date.now()}-${randomToken()}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, prepared, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: prepared.type || `image/${ext}`,
+      });
+    if (uploadError) {
+      console.error('pending photo upload failed', uploadError);
+      return null;
+    }
+    const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
+    return pub.publicUrl;
+  } catch (e) {
+    console.error('uploadPendingPhoto threw', e);
     return null;
   }
-  const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  return pub.publicUrl;
 }
 
 /**

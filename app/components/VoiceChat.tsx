@@ -500,28 +500,31 @@ export default function VoiceChat({
         : '');
 
     let attachment:
-      | { name: string; type: string; base64: string; photoUrl?: string }
+      | { name: string; type: string; base64?: string; photoUrl?: string }
       | undefined;
     if (file) {
       try {
-        const base64 = await fileToBase64(file);
-        let photoUrl: string | undefined;
-        // For images: upload via the authenticated client BEFORE sending so
-        // the server gets a stable public URL it can pass to Claude. Server
-        // can't reliably upload itself (its supabase client is anon-keyed
-        // and RLS on storage.objects rejects anon inserts).
         if (file.type.startsWith('image/')) {
+          // Images go straight to Supabase Storage (compressed inside
+          // uploadPendingPhoto). We send ONLY the URL to /api/chat — no
+          // base64 in the request body — so we never hit Vercel's 4.5 MB
+          // serverless body limit, even for big phone-camera photos.
           const url = await uploadPendingPhoto(file);
           if (!url) {
             setError(
-              'Could not upload the photo to storage. Check your connection and try again.',
+              'Photo upload failed — the image may be too large or your network dropped. Please try again.',
             );
             setSending(false);
             return;
           }
-          photoUrl = url;
+          attachment = { name: file.name, type: file.type, photoUrl: url };
+        } else {
+          // PDFs and spreadsheets still go via base64. They're typically
+          // small enough to fit in the request body. (~3 MB raw cap to
+          // stay under Vercel's ~4.5 MB limit after base64 inflation.)
+          const base64 = await fileToBase64(file);
+          attachment = { name: file.name, type: file.type, base64 };
         }
-        attachment = { name: file.name, type: file.type, base64, photoUrl };
       } catch {
         setError('Failed to read the attached file.');
         setSending(false);
@@ -570,7 +573,21 @@ export default function VoiceChat({
         }),
       });
       if (!res.ok || !res.body) {
-        throw new Error(`HTTP ${res.status}`);
+        // Try to read the body so we can surface a useful error. A 413 from
+        // Vercel comes back as plain text ("Request Entity Too Large"), not
+        // JSON — avoid feeding it to JSON.parse.
+        let detail = '';
+        try {
+          detail = (await res.text()).slice(0, 200);
+        } catch {
+          /* ignore */
+        }
+        if (res.status === 413 || /too large|entity too large/i.test(detail)) {
+          throw new Error(
+            'Upload too large — the server rejected the request. Please try a smaller file.',
+          );
+        }
+        throw new Error(`HTTP ${res.status}${detail ? `: ${detail}` : ''}`);
       }
 
       const reader = res.body.getReader();
@@ -633,7 +650,19 @@ export default function VoiceChat({
         void speak(accumulatedText.trim());
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const raw = e instanceof Error ? e.message : String(e);
+      // "Unexpected token 'R', \"Request En\"..." is what surfaces when a
+      // proxy (or the Supabase client's internal parser) tried to parse a
+      // non-JSON response — almost always "Request Entity Too Large".
+      // Translate to something the user can act on.
+      const looksLikeJsonError =
+        /unexpected token|not valid json|json\.parse/i.test(raw);
+      const looksLikeTooLarge = /too large|entity too large|payload too large/i.test(raw);
+      const friendly =
+        looksLikeJsonError || looksLikeTooLarge
+          ? 'Photo upload failed — the image may be too large. Try a smaller photo or take a new one.'
+          : raw;
+      setError(friendly);
       // Remove the empty assistant placeholder if the stream never produced
       // any text (so the chat doesn't show a perpetually-typing bubble).
       setUiMessages((prev) => {

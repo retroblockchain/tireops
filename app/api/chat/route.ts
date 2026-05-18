@@ -371,7 +371,12 @@ type ContentBlock =
   | { type: 'text'; text: string }
   | { type: 'tool_use'; id: string; name: string; input: ToolInput }
   | { type: 'tool_result'; tool_use_id: string; content: string }
-  | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+  | {
+      type: 'image';
+      source:
+        | { type: 'base64'; media_type: string; data: string }
+        | { type: 'url'; url: string };
+    }
   | { type: 'document'; source: { type: 'base64'; media_type: string; data: string } };
 
 type Message = { role: 'user' | 'assistant'; content: string | ContentBlock[] };
@@ -379,12 +384,17 @@ type Message = { role: 'user' | 'assistant'; content: string | ContentBlock[] };
 type AttachmentInput = {
   name: string;
   type: string;
-  base64: string;
   /**
-   * When the client has already uploaded the image to Supabase Storage (the
-   * normal path — done via the authenticated client), it passes the public
-   * URL here. The server then skips its own upload attempt (which would fail
-   * under typical anon-blocked storage RLS) and uses this URL directly.
+   * Base64 is OPTIONAL. For images the client now uploads to Supabase
+   * Storage first and sends only `photoUrl` — skipping base64 keeps the
+   * request body well under Vercel's serverless size limit (~4.5 MB).
+   * PDFs/spreadsheets still come through as base64 since they're small.
+   */
+  base64?: string;
+  /**
+   * When the client has already uploaded the image to Supabase Storage,
+   * it passes the public URL here. The route then uses Anthropic's url-
+   * source image block — no base64 in the body at all.
    */
   photoUrl?: string;
 };
@@ -421,15 +431,15 @@ async function buildAttachmentBlocks(att: AttachmentInput): Promise<ContentBlock
       : 'image/jpeg';
 
     // Prefer the URL the client already uploaded via its authenticated
-    // supabase session. Fall back to a server-side upload attempt only when
-    // the client didn't supply one (e.g. older client). Server upload uses
-    // the anon-keyed client and may fail under strict storage RLS.
+    // session. If only base64 was sent (older client / unusual flow), try a
+    // server-side upload as a fallback — and even if that fails we can still
+    // use the base64 image source directly.
     let photoUrl: string | null =
       typeof att.photoUrl === 'string' && att.photoUrl.trim()
         ? att.photoUrl.trim()
         : null;
 
-    if (!photoUrl) {
+    if (!photoUrl && att.base64) {
       try {
         const buf = Buffer.from(att.base64, 'base64');
         const path = `pending/${Date.now()}-${randomToken()}.${ext || 'jpg'}`;
@@ -449,21 +459,32 @@ async function buildAttachmentBlocks(att: AttachmentInput): Promise<ContentBlock
       }
     }
 
-    blocks.push({
-      type: 'image',
-      source: { type: 'base64', media_type: mediaType, data: att.base64 },
-    });
     if (photoUrl) {
+      // Preferred path: Anthropic fetches the image directly from the URL.
+      // The request body stays tiny — no base64 in the body at all.
+      blocks.push({
+        type: 'image',
+        source: { type: 'url', url: photoUrl },
+      });
       blocks.push({
         type: 'text',
         text: `[System note: This image was uploaded and stored at "${photoUrl}". If you add a tire FROM this image (single-tire flow, not a bulk spreadsheet), pass photo_url="${photoUrl}" to add_tire so the photo is saved as that tire's attached photo.]`,
       });
-    } else {
-      // No URL available at all — let Claude know so it doesn't refuse to
-      // add the tire while waiting for one.
+    } else if (att.base64) {
+      // Fallback when there's no URL — older clients or unusual flows.
+      blocks.push({
+        type: 'image',
+        source: { type: 'base64', media_type: mediaType, data: att.base64 },
+      });
       blocks.push({
         type: 'text',
         text: `[System note: An image was attached but no storage URL is available. You may still extract tire details and add the tire — just omit photo_url from add_tire. Do not refuse to add because of the missing URL.]`,
+      });
+    } else {
+      // Neither URL nor base64 — nothing actionable.
+      blocks.push({
+        type: 'text',
+        text: `[Image attached but could not be processed.]`,
       });
     }
     return blocks;
@@ -471,6 +492,13 @@ async function buildAttachmentBlocks(att: AttachmentInput): Promise<ContentBlock
 
   // ---- PDF ----
   if (mime === 'application/pdf' || ext === 'pdf') {
+    if (!att.base64) {
+      blocks.push({
+        type: 'text',
+        text: `[Attached PDF "${att.name}" — no content available.]`,
+      });
+      return blocks;
+    }
     blocks.push({
       type: 'document',
       source: { type: 'base64', media_type: 'application/pdf', data: att.base64 },
@@ -480,6 +508,13 @@ async function buildAttachmentBlocks(att: AttachmentInput): Promise<ContentBlock
 
   // ---- Spreadsheet (.csv, .tsv, .xlsx, .xls) ----
   if (['csv', 'tsv', 'xlsx', 'xls', 'xlsm', 'ods'].includes(ext)) {
+    if (!att.base64) {
+      blocks.push({
+        type: 'text',
+        text: `[Attached file "${att.name}" — no content available.]`,
+      });
+      return blocks;
+    }
     const buf = Buffer.from(att.base64, 'base64');
     const text = parseSpreadsheet(buf, att.name);
     if (text) {
@@ -686,7 +721,12 @@ export async function POST(req: NextRequest) {
 
   // If the client sent a fresh attachment, fold its content blocks into the
   // last user message before we hand the conversation to Anthropic.
-  if (body.attachment && body.attachment.base64 && messages.length > 0) {
+  // Either base64 (PDFs / spreadsheets) or photoUrl (images) is enough.
+  if (
+    body.attachment &&
+    (body.attachment.base64 || body.attachment.photoUrl) &&
+    messages.length > 0
+  ) {
     const lastIdx = messages.length - 1;
     const last = messages[lastIdx];
     if (last && last.role === 'user') {
