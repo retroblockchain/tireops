@@ -238,9 +238,25 @@ export default function HistoryPage() {
                   minWidth: 0,
                   flex: '1 1 0',
                 }}
-                title={r.user_email || ''}
+                title={
+                  r.employee_name
+                    ? `${r.employee_name} (${r.user_email || 'unknown'})`
+                    : r.user_email || ''
+                }
               >
-                {r.user_email || 'unknown'}
+                {r.employee_name ? (
+                  <>
+                    <span style={{ color: COLORS.ink, fontWeight: 700 }}>
+                      {r.employee_name}
+                    </span>
+                    <span style={{ opacity: 0.7 }}>
+                      {' '}
+                      ({r.user_email || 'unknown'})
+                    </span>
+                  </>
+                ) : (
+                  r.user_email || 'unknown'
+                )}
               </span>
             </div>
           </article>

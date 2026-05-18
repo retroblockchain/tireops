@@ -52,7 +52,13 @@ ${shopRule}
    d. ONLY after the user replies with a clear affirmative in a SEPARATE turn may you call add_tire — once per row.
    e. NEVER call add_tire in the same turn you announce what you found from a file. This is critical for spreadsheets that may contain many rows.
    f. If the user uploaded an image of ONE specific tire (not a spreadsheet of many), and a system note in the message gave you a photo_url, include that photo_url in your add_tire call so the photo is saved against the new tire.
-10. BUG REPORTS: If the user reports a problem with the app or asks you to log/file a bug (e.g. "report a bug: the photo upload failed", "log an issue", "this is broken — track it"), call the report_bug tool with a concise description that captures the issue. Confirm to the user that the bug was logged. Ask for clarification only if their description is too vague to be useful — short reports are fine.`;
+10. BUG REPORTS: If the user reports a problem with the app or asks you to log/file a bug (e.g. "report a bug: the photo upload failed", "log an issue", "this is broken — track it"), call the report_bug tool with a concise description that captures the issue. Confirm to the user that the bug was logged. Ask for clarification only if their description is too vague to be useful — short reports are fine.
+11. EMPLOYEE INTRODUCTION: At the start of the conversation the user has already seen a greeting from you saying "Welcome to BuySell Tires ${currentShop}! Who am I speaking with?" (or "Welcome back, [name]!" if they've used the app this session). Their FIRST message will usually be their name (e.g. "I'm Dave", "this is Sarah", or just "Dave").
+   a. When they introduce themselves, IMMEDIATELY call set_employee_name with their first name.
+   b. Then briefly acknowledge them by name and ask how you can help — keep it to one short sentence.
+   c. Do NOT repeat the welcome greeting yourself.
+   d. After that, occasionally use their name when it feels natural, but don't overdo it.
+   e. If their first message is a regular question instead of an introduction, proceed normally and don't call set_employee_name unless they introduce themselves later.`;
 }
 
 const TOOLS = [
@@ -142,6 +148,18 @@ const TOOLS = [
       required: ['description'],
     },
   },
+  {
+    name: 'set_employee_name',
+    description:
+      'Record the employee\'s name when they introduce themselves at the start of the conversation. Call this immediately after they tell you their name (e.g. "I\'m Dave", "this is Sarah", or just "Dave"). The name will be tagged onto any tire changes they make during this session.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'The employee\'s first name as they gave it.' },
+      },
+      required: ['name'],
+    },
+  },
 ];
 
 const RECOMMENDED_FIELDS = ['brand', 'model', 'size', 'season', 'condition', 'quantity', 'price'];
@@ -222,6 +240,7 @@ async function runAddTire(
   currentShop: string,
   userEmail: string | null,
   source: ActivitySource,
+  employeeName: string | null,
 ) {
   const row: Record<string, unknown> = {};
   for (const f of ['shop', 'brand', 'model', 'size', 'season', 'condition', 'tread_pct', 'quantity', 'price', 'notes']) {
@@ -247,7 +266,7 @@ async function runAddTire(
     }
   }
 
-  await insertActivityLog({ action: 'added', tire: data, source, userEmail });
+  await insertActivityLog({ action: 'added', tire: data, source, userEmail, employeeName });
   return { inserted: data, missing, photo_attached: !!photoUrl };
 }
 
@@ -255,6 +274,7 @@ async function runUpdateTire(
   input: ToolInput,
   userEmail: string | null,
   source: ActivitySource,
+  employeeName: string | null,
 ) {
   const rawId = input.id;
   if (typeof rawId !== 'string') return { error: 'id is required' };
@@ -267,7 +287,7 @@ async function runUpdateTire(
   if (Object.keys(patch).length === 0) return { error: 'no fields to update' };
   const { data, error } = await supabase.from('tires').update(patch).eq('id', id).select().single();
   if (error) return { error: error.message };
-  await insertActivityLog({ action: 'edited', tire: data, source, userEmail });
+  await insertActivityLog({ action: 'edited', tire: data, source, userEmail, employeeName });
   return { updated: data };
 }
 
@@ -275,6 +295,7 @@ async function runDeleteTire(
   input: ToolInput,
   userEmail: string | null,
   source: ActivitySource,
+  employeeName: string | null,
 ) {
   const rawId = input.id;
   if (typeof rawId !== 'string') return { error: 'id is required' };
@@ -282,8 +303,14 @@ async function runDeleteTire(
   if (!id) return { error: `tire not found: "${rawId}"` };
   const { data, error } = await supabase.from('tires').delete().eq('id', id).select().single();
   if (error) return { error: error.message };
-  await insertActivityLog({ action: 'deleted', tire: data, source, userEmail });
+  await insertActivityLog({ action: 'deleted', tire: data, source, userEmail, employeeName });
   return { deleted: data };
+}
+
+async function runSetEmployeeName(input: ToolInput) {
+  const name = typeof input.name === 'string' ? input.name.trim() : '';
+  if (!name) return { error: 'name is required' };
+  return { recorded: name };
 }
 
 async function runReportBug(
@@ -316,13 +343,15 @@ async function runTool(
   currentShop: string,
   userEmail: string | null,
   source: ActivitySource,
+  employeeName: string | null,
 ) {
   try {
     if (name === 'search_tires') return await runSearchTires(input);
-    if (name === 'add_tire') return await runAddTire(input, currentShop, userEmail, source);
-    if (name === 'update_tire') return await runUpdateTire(input, userEmail, source);
-    if (name === 'delete_tire') return await runDeleteTire(input, userEmail, source);
+    if (name === 'add_tire') return await runAddTire(input, currentShop, userEmail, source, employeeName);
+    if (name === 'update_tire') return await runUpdateTire(input, userEmail, source, employeeName);
+    if (name === 'delete_tire') return await runDeleteTire(input, userEmail, source, employeeName);
     if (name === 'report_bug') return await runReportBug(input, currentShop, userEmail);
+    if (name === 'set_employee_name') return await runSetEmployeeName(input);
     return { error: `unknown tool: ${name}` };
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) };
@@ -476,8 +505,19 @@ async function callAnthropic(messages: Message[], system: string) {
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 1024,
-      system,
+      // 600 is plenty for confirmations, brief replies, and tool-call rounds.
+      // Lower max_tokens → faster decode tail.
+      max_tokens: 600,
+      // Cache the long system prompt as an ephemeral 5-minute prefix.
+      // Repeated calls within the same shop session reuse the cached prefix
+      // and drop time-to-first-token roughly in half.
+      system: [
+        {
+          type: 'text',
+          text: system,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
       tools: TOOLS,
       messages,
     }),
@@ -500,6 +540,7 @@ export async function POST(req: NextRequest) {
     messages?: Message[];
     currentShop?: string;
     currentUserEmail?: string;
+    employeeName?: string;
     hasFileInSession?: boolean;
     attachment?: AttachmentInput;
   };
@@ -516,6 +557,14 @@ export async function POST(req: NextRequest) {
   const userEmail =
     typeof body.currentUserEmail === 'string' && body.currentUserEmail.trim()
       ? body.currentUserEmail.trim()
+      : null;
+  // Employee name persists across the tool loop. Starts from what the client
+  // sent (read from sessionStorage), then gets bumped if set_employee_name
+  // is invoked this turn — so a single-turn intro+action still tags the
+  // activity log correctly.
+  let employeeName: string | null =
+    typeof body.employeeName === 'string' && body.employeeName.trim()
+      ? body.employeeName.trim()
       : null;
 
   // If the client sent a fresh attachment, fold its content blocks into the
@@ -555,7 +604,14 @@ export async function POST(req: NextRequest) {
 
       const toolResults: ContentBlock[] = [];
       for (const tu of toolUses) {
-        const out = await runTool(tu.name, tu.input, currentShop, userEmail, source);
+        // If the model just told us the user's name, capture it BEFORE
+        // running any downstream tool calls in this turn so the activity
+        // log entries for those calls already include the name.
+        if (tu.name === 'set_employee_name') {
+          const n = typeof tu.input.name === 'string' ? tu.input.name.trim() : '';
+          if (n) employeeName = n;
+        }
+        const out = await runTool(tu.name, tu.input, currentShop, userEmail, source, employeeName);
         toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(out) });
       }
       messages.push({ role: 'user', content: toolResults });

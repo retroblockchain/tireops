@@ -3,6 +3,13 @@ import { useEffect, useRef, useState } from 'react';
 import { COLORS } from '../../lib/theme';
 import { useAuthInfo } from '../../lib/useCurrentShop';
 import { uploadPendingPhoto } from '../../lib/photos';
+import { UNASSIGNED_SHOP } from '../../lib/shops';
+import {
+  getEmployeeName,
+  setEmployeeName as persistEmployeeName,
+  getWelcomedShop,
+  setWelcomedShop,
+} from '../../lib/employeeName';
 
 type UiMsg = {
   role: 'user' | 'assistant';
@@ -53,6 +60,26 @@ const ATTACH_ACCEPT =
 
 const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024; // 15 MB
 
+/**
+ * Walk the chat history (newest message first) and return the most recent
+ * name the AI captured via set_employee_name. Used after a /api/chat round-
+ * trip to persist the name into local state + sessionStorage.
+ */
+function extractEmployeeNameFromMessages(msgs: ApiMsg[]): string | null {
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i];
+    if (m.role !== 'assistant' || !Array.isArray(m.content)) continue;
+    for (const b of m.content) {
+      const tb = b as { type: string; name?: string; input?: { name?: unknown } };
+      if (tb.type === 'tool_use' && tb.name === 'set_employee_name') {
+        const n = tb.input?.name;
+        if (typeof n === 'string' && n.trim()) return n.trim();
+      }
+    }
+  }
+  return null;
+}
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -82,6 +109,14 @@ export default function VoiceChat({
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [hasFileInSession, setHasFileInSession] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [employeeName, setEmployeeName] = useState<string | null>(null);
+
+  // Hydrate employee name from sessionStorage on first render.
+  useEffect(() => {
+    const n = getEmployeeName();
+    if (n) setEmployeeName(n);
+  }, []);
 
   const [uiMessages, setUiMessages] = useState<UiMsg[]>([]);
   const [apiMessages, setApiMessages] = useState<ApiMsg[]>([]);
@@ -285,6 +320,23 @@ export default function VoiceChat({
     }
   };
 
+  // -------- Welcome message (once per shop session) --------
+  useEffect(() => {
+    if (!currentShop || currentShop === UNASSIGNED_SHOP) return;
+    if (uiMessages.length > 0) return;
+    if (getWelcomedShop() === currentShop) return;
+
+    const known = getEmployeeName();
+    const greeting = known
+      ? `Welcome back, ${known}!`
+      : `Welcome to BuySell Tires ${currentShop}! Who am I speaking with?`;
+
+    setUiMessages([{ role: 'assistant', text: greeting }]);
+    setWelcomedShop(currentShop);
+    void speak(greeting);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentShop]);
+
   // -------- STT (MediaRecorder + Whisper) --------
   const startRecording = async () => {
     if (recording || transcribing) return;
@@ -479,6 +531,7 @@ export default function VoiceChat({
           messages: nextApi,
           currentShop,
           currentUserEmail,
+          employeeName,
           hasFileInSession: hasFileInSession || !!file,
           attachment,
         }),
@@ -488,6 +541,14 @@ export default function VoiceChat({
       const reply: string = data.reply || '';
       setApiMessages(data.messages as ApiMsg[]);
       setUiMessages([...nextUi, { role: 'assistant' as const, text: reply }]);
+      // If the AI just learned the user's name via set_employee_name,
+      // capture it for the rest of this session (state + sessionStorage so
+      // form-based add/edit/delete tag activity_log too).
+      const newName = extractEmployeeNameFromMessages(data.messages as ApiMsg[]);
+      if (newName && newName !== employeeName) {
+        setEmployeeName(newName);
+        persistEmployeeName(newName);
+      }
       void speak(reply);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

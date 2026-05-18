@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { getEmployeeName } from './employeeName';
 
 export type ActivityAction = 'added' | 'edited' | 'deleted';
 export type ActivitySource = 'form' | 'voice' | 'file';
@@ -10,6 +11,7 @@ export type ActivityLogRow = {
   tire_description: string;
   shop: string | null;
   user_email: string | null;
+  employee_name: string | null;
   source: ActivitySource;
   created_at: string;
 };
@@ -42,6 +44,7 @@ export async function insertActivityLog(args: {
   tire: any;
   source: ActivitySource;
   userEmail: string | null;
+  employeeName?: string | null;
 }): Promise<void> {
   try {
     await supabase.from('activity_log').insert({
@@ -50,6 +53,7 @@ export async function insertActivityLog(args: {
       tire_description: tireDescription(args.tire),
       shop: args.tire?.shop ?? null,
       user_email: args.userEmail,
+      employee_name: args.employeeName ?? null,
       source: args.source,
     });
   } catch (e) {
@@ -58,14 +62,17 @@ export async function insertActivityLog(args: {
 }
 
 /**
- * Client-side convenience wrapper that auto-fetches the signed-in user's
- * email from Supabase Auth if it wasn't passed in.
+ * Client-side convenience wrapper. Auto-fetches the signed-in user's email
+ * from Supabase Auth, and the employee name from sessionStorage (set by
+ * the AI when the user introduced themselves), unless either is explicitly
+ * passed in.
  */
 export async function logActivity(args: {
   action: ActivityAction;
   tire: any;
   source: ActivitySource;
   userEmail?: string | null;
+  employeeName?: string | null;
 }): Promise<void> {
   let email = args.userEmail;
   if (email === undefined) {
@@ -76,10 +83,15 @@ export async function logActivity(args: {
       email = null;
     }
   }
+  let employeeName = args.employeeName;
+  if (employeeName === undefined) {
+    employeeName = getEmployeeName();
+  }
   await insertActivityLog({
     action: args.action,
     tire: args.tire,
     source: args.source,
     userEmail: email ?? null,
+    employeeName: employeeName ?? null,
   });
 }
