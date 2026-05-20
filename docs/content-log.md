@@ -94,3 +94,9 @@ The cost cap had been verified in one direction only — calls go through, get l
 The pre-flight nature mattered: today's spend stayed at $0.139 after the 429, not $0.139 + epsilon, because the request never reached Anthropic. The cap fires *before* the API call rather than after — so once the budget is hit, no further Anthropic dollars accrue. Removed the override afterwards and confirmed the budget is back to $5 and the chat flow resumes.
 
 **The lesson worth keeping:** a guardrail isn't trustworthy until you've watched it stop you. The happy path looks identical whether your safety net works or not. Five minutes of "deliberately break it" is worth more than five months of "I'm sure it'll fire when it has to."
+
+---
+
+## 2026-05-19 — Closing the security-and-guardrails arc
+
+The sprint started with a false alarm ("`.env.local` is committed to git!" — it wasn't) and ends with a working budget cap fired in both directions and verified RLS that makes `ai_usage_log` append-only from the anon role. The integration endpoint inherits the cap automatically because it delegates to `/api/chat`, so one $5/day ceiling protects both the voice UI and the CRM-to-tireops bridge. Five commits, two content-log moments worth posting (the false-alarm story and the first two-app handshake), zero keys rotated unnecessarily, zero git history rewrites. Tireops goes dormant now until either a real bug, a CRM-side change that needs a counterpart here, or the eventual Phase 5 schema-capture pass.

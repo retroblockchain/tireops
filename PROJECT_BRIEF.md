@@ -228,17 +228,17 @@ The system prompt is strict about destructive actions — Claude must describe t
 
 ## 7. Cost Guardrails
 
-⚠️ **Weaker than the CRM.** Notable:
-- No per-day spend cap
-- No per-request budget check
-- No usage logging table
-- The only protection is `MAX_HISTORY_TURNS = 12` which caps payload size
+Ported from the sibling CRM on 2026-05-19. In place:
 
-The sibling [CRM project](c:\Users\chedd\crm-app) had a $28 incident that led to a `DAILY_AI_BUDGET_USD` cap, a `ai_usage_log` Supabase table, and a settings-page spend display. tireops has **not** been hardened the same way yet. **If tireops volume grows, port the CRM's guardrails over.**
+- **Per-day spend cap** at $5/day (override via `DAILY_AI_BUDGET_USD`, emergency bypass `AI_BUDGET_DISABLED=true`). Pre-flight in `app/api/chat/route.ts` — once today's spend hits the cap, calls return HTTP 429 until UTC midnight. Smoke-tested in both directions.
+- **Usage logging** to the `ai_usage_log` Supabase table (anon RLS, append-only — insert + select for anon, no update/delete policies). Every tool-loop iteration logs its own row with `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_creation_tokens`, and `cost_usd`. See `lib/anthropic.ts`.
+- **Prompt caching** via `cache_control: { type: 'ephemeral' }` on the system block. Already present from prior work; verified working — a warm cache cuts per-call cost ~6.7× (first call $0.020, second call within 5 min $0.003).
+- **Dashboard widget** at the bottom of `/` shows today's spend against the cap with a color-tiered progress bar.
+- **CRM integration traffic shares the same cap** because `/api/integration/inventory` delegates to `/api/chat`. One ceiling, both surfaces.
 
-Specifically, the patterns to copy from the CRM:
-- [lib/anthropic.js](c:\Users\chedd\crm-app\lib\anthropic.js): `assertWithinBudget()`, `logUsage()`, `todaysAiSpend()`
-- [scripts/add-ai-usage-log.sql](c:\Users\chedd\crm-app\scripts\add-ai-usage-log.sql): the migration for the usage table
+Known limitation: `logUsage` hardcodes `feature: 'chat'`, so integration calls aren't distinguishable from voice-UI calls in the usage log. Address by threading a feature label through the chat handler signature when per-surface cost attribution becomes useful.
+
+`MAX_HISTORY_TURNS = 12` still applies as a payload-size cap on top of the budget cap.
 
 ---
 
