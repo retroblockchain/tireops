@@ -196,3 +196,21 @@ Second, a "recent adds" strip in the chat UI. Small horizontal scroll just above
 The strip is renderless-when-empty. New users (or after "New chat") see the chat exactly as before. Once you've added a tire in this session, the strip appears and grows up to three pills wide. Tap any pill and you're on its edit page — useful for quick double-checks of "did that just save the right way?" without scrolling up through the chat to find the AI's confirmation text.
 
 **The lesson worth keeping:** the most useful UI surfaces often turn existing invisible state into visible state, with zero new state to manage. The recent-adds strip is 50 lines of code and adds capability that *feels* substantial — but every byte of data it shows already existed in apiMessages, just invisibly. The cost is a useMemo and some CSS. The win is "where did that just go?" answered at a glance, every time.
+
+---
+
+## 2026-05-21 — Smarter chat Phase 3: cross-entry references in batch sessions
+
+New rule 17 in the system prompt. Targets the moment in batch dictation where you've just added one tire and want to add another like it — same brand, same model, different size or quantity. Previously the agent treated each entry as a fresh start, so "another set in 215/55R17" got saved as a tire with size 215/55R17 and null brand/model. Now the agent recognizes the implicit reference, inherits brand+model from the most recent add, applies the new fields from this dictation, and asks for one-sentence confirmation before saving.
+
+Tested live with two patterns:
+
+1. *"Another set in [size]"* — added a Michelin Pilot Sport 4S in 245/40R18, then said "another set in 245/40R20, 220 each." Agent's reply: *"Another Michelin Pilot Sport 4S in 245/40R20 — set of 4, new, $220 each, Warehouse. Save?"* — exact rule 17 phrasing. After "yes save it", tire-176 inserted with the inherited brand/model and the new size and price.
+
+2. *"Same but in [size], pair"* — added a Continental ExtremeContact DWS06 Plus in 225/45R17, then said "same but in 215/55R17, just a pair, 130 each." Agent's reply: *"Another Continental ExtremeContact DWS06 Plus in 215/55R17 — pair of 2, $130 each, Warehouse, all-season. Save?"* — inherited brand+model+season, applied "pair" = qty 2 + new size + new price. Confirmed and saved as tire-178.
+
+The bumped `MAX_HISTORY_TURNS = 40` from Phase 2 makes this work end-to-end. Even in a 20-tire batch session, the agent can see the most recent add to reference. Without that bump, "another set" referencing a tire 15 turns ago would fail silently because the agent's context window doesn't reach back that far.
+
+The rule also has guard clauses: don't apply when the user explicitly names a different brand or model (their words override), don't apply when there's no recent add (a session that's only had search/update/delete operations doesn't have an "in-context tire" to reference), don't apply when the conversation has moved through unrelated topics in between. The point is to handle the *flow* moment of batch dictation, not to over-infer in mixed conversations.
+
+**The lesson worth keeping:** at the time we set `MAX_HISTORY_TURNS = 12` it felt generous. Once the catalog matcher landed and started enabling longer batch sessions, 12 was the limit on how natural the conversation could feel. Sometimes a config constant that seemed fine *creates the ceiling* on a feature you didn't yet have. When a new feature touches an old constant, look back at the constant.
