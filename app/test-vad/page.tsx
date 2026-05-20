@@ -153,7 +153,7 @@ export default function TestVadPage() {
       )}
 
       <p style={{ fontSize: 12, color: COLORS.textSubtle, marginTop: 24 }}>
-        This page is dev-only. It'll be deleted (or hidden) at sprint wrap.
+        This page is dev-only. It will be deleted (or hidden) at sprint wrap.
       </p>
     </main>
   );

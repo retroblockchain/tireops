@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { COLORS, RADII, SHADOWS } from '../../lib/theme';
 import { useAuthInfo } from '../../lib/useCurrentShop';
 import { uploadPendingPhoto } from '../../lib/photos';
+import HandsFreeSession from './HandsFreeSession';
 
 type UiMsg = {
   role: 'user' | 'assistant';
@@ -155,6 +156,10 @@ export default function VoiceChat({
   const [speaking, setSpeaking] = useState(false);
   const [supportsRecording, setSupportsRecording] = useState(true);
   const [recording, setRecording] = useState(false);
+  // Hands-free voice session — separate from the tap-to-record `recording`
+  // state above. The two modes are mutually exclusive; whichever is live
+  // disables the other's button.
+  const [handsfreeActive, setHandsfreeActive] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<Voice>(DEFAULT_VOICE);
   // Tracks whether we've finished the sessionStorage rehydrate pass. The
@@ -805,7 +810,7 @@ export default function VoiceChat({
     }
   };
 
-  const micDisabled = !supportsRecording || transcribing || sending;
+  const micDisabled = !supportsRecording || transcribing || sending || handsfreeActive;
   const micBg = recording ? COLORS.redDeep : COLORS.red;
   const micGlow = recording ? '0 0 0 6px rgba(200,16,46,0.25)' : 'none';
 
@@ -1428,6 +1433,13 @@ export default function VoiceChat({
         multiple
         onChange={onPickFile}
         style={{ display: 'none' }}
+      />
+
+      {/* Hands-free row — second voice mode, sits above tap-to-record.
+          Disabled while tap-to-record is live or a message is sending. */}
+      <HandsFreeSession
+        disabled={recording || sending || transcribing}
+        onActiveChange={setHandsfreeActive}
       />
 
       <div
