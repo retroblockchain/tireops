@@ -257,3 +257,21 @@ What got deferred today and why:
 - **7.B sticky session shop override** — only matters when entering tires for a non-default shop, which is an edge case today. Build when it actually hurts.
 
 **The lesson worth keeping from the whole arc:** disciplined planning isn't about being right ahead of time; it's about having a written reference to peel from when the actual building reveals what you didn't know. Today's plan ranked candidates 1-12 with effort/impact estimates; today's commits matched that ranking on five of five top picks, missed on zero, and only deviated in two places where actually running the rule against the live model revealed something cleaner. The plan didn't have to be perfect to be useful. It just had to be *real*.
+
+---
+
+## 2026-05-21 — A data-integrity moment, and what we changed
+
+After session-close, the owner flagged a real bug: the chat agent was supposedly adding fake prices to tires he'd added during real shop use. "The last 8 tires I added have prices that I didn't give it." It looked like a hallucination — and a serious one, since false prices are a data-integrity issue. Investigated before touching anything.
+
+The investigation actually contradicted the initial framing. Queried Supabase: 60 tires total, only 11 with non-null prices, and every single one of those 11 was a test tire I'd created myself during the day's sprint testing. The owner's real shop entries (tires 155-169, added under his actual email) all had `price: null`. The agent wasn't inventing prices — I was, via the test scripts that said things like "200 each" or "150 each" as inputs. The agent was correctly extracting those values. The bug wasn't where it looked like it was.
+
+The bug was where it actually was: **test isolation**. My test scripts used `shop: "Mission"` and real brand names (Michelin Pilot Sport 4S, Bridgestone Blizzak WS90, Continental ExtremeContact DWS06 Plus). When the owner opened `/inventory` to do a normal review of his shop's stock, my 11 test entries were sitting there mixed with his 49 real entries, with prices he hadn't given. From his vantage point this looked exactly like agent hallucination. It wasn't. It was me, three hours earlier, deciding "these look plausible, they can stay."
+
+Two changes shipped immediately:
+
+1. `scripts/cleanup-test-tires.sql` — targeted delete for the 11 affected `tire_number`s. Owner runs it in Supabase. Surgical, not a wipe.
+
+2. New section in `AGENTS.md`: "Testing against the real database." Four rules — use `shop: "TEST"`, use fake brand names, clean up immediately, never assume plausible-looking test data can stay. This rule applies to every future test against the real database, and it would have prevented today's bug if it had existed three hours ago.
+
+**The lesson worth keeping:** the worst kind of bug isn't the kind that breaks something — it's the kind that *looks* like agent misbehavior but is actually test pollution. The owner did the right thing: investigate before fix. The investigation showed the agent was clean and the developer (me) was the source. If we'd jumped straight to "tighten the price rule in the prompt" we'd have papered over the actual failure mode and the actual lesson — test data and production data can't share a namespace, ever, no matter how isolated the test was logically.

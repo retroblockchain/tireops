@@ -1,0 +1,31 @@
+-- ============================================================
+-- Cleanup: delete the 11 test tires that polluted real inventory
+-- during 2026-05-21's sprint testing.
+--
+-- These tires were created by Claude's test scripts (catalog
+-- sprint + smarter-chat sprint) against the live Supabase
+-- database with shop="Mission", which made them visually
+-- indistinguishable from real shop entries. The prices on them
+-- came from test inputs in the scripts (e.g., "200 each", "150
+-- each"), NOT from the agent hallucinating prices — but the
+-- user-felt symptom looked like price hallucination because the
+-- prices appeared on what looked like real entries.
+--
+-- DESTRUCTIVE — irreversible. Run only after confirming via
+-- /inventory that these 11 tire_numbers really are the test
+-- entries (verified by the owner before this script was written).
+--
+-- Affected:
+--   tires 140, 141, 142, 171, 172, 173, 174, 175, 176, 177, 178
+-- Cascades to: tire_photos (per FK definition)
+-- Does NOT touch:
+--   - activity_log (kept as historical record — orphaned tire_id
+--     refs are fine, log preserves the fact that these were
+--     created and that they existed for a while)
+--   - ai_usage_log (separate concern, no tire references)
+--   - tire-170 (in test-tire range but excluded per owner's list;
+--     it has price=null already so it's a less acute pollution)
+-- ============================================================
+
+delete from tires
+where tire_number in (140, 141, 142, 171, 172, 173, 174, 175, 176, 177, 178);
