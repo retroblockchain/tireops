@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { ActivitySource, insertActivityLog } from '../../../lib/activity';
 import { parseSpreadsheet } from '../../../lib/parseSpreadsheet';
 import { TIRE_LOCATIONS, canonicalizeLocation } from '../../../lib/locations';
+import { assertWithinBudget, logUsage, type AnthropicUsage } from '../../../lib/anthropic';
 
 export const runtime = 'nodejs';
 
@@ -854,7 +855,7 @@ async function callAnthropicStream(
   });
 }
 
-type StepResult = { content: ContentBlock[] };
+type StepResult = { content: ContentBlock[]; usage: AnthropicUsage | null };
 
 /**
  * Parse an Anthropic SSE stream into final `ContentBlock[]`, invoking
@@ -879,6 +880,7 @@ async function parseAnthropicStream(
     toolUseInputJson?: string;
   };
   const blocks: Block[] = [];
+  let usage: AnthropicUsage | null = null;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -902,6 +904,8 @@ async function parseAnthropicStream(
           partial_json?: string;
         };
         error?: { message?: string };
+        message?: { usage?: AnthropicUsage };
+        usage?: AnthropicUsage;
       };
       try {
         event = JSON.parse(data);
@@ -937,8 +941,14 @@ async function parseAnthropicStream(
         }
       } else if (event.type === 'error') {
         throw new Error(event.error?.message || 'anthropic stream error');
+      } else if (event.type === 'message_start' && event.message?.usage) {
+        // Initial usage block: input_tokens + cache_read/creation token totals.
+        usage = { ...event.message.usage };
+      } else if (event.type === 'message_delta' && event.usage) {
+        // Final tally: output_tokens (and sometimes revised input_tokens).
+        usage = { ...(usage || {}), ...event.usage };
       }
-      // content_block_stop / message_delta / message_stop need no action.
+      // content_block_stop / message_stop need no action.
     }
   }
 
@@ -963,12 +973,22 @@ async function parseAnthropicStream(
     }
   }
 
-  return { content };
+  return { content, usage };
 }
 
 export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json({ error: 'ANTHROPIC_API_KEY not set on server' }, { status: 500 });
+  }
+  // Pre-flight budget check: if today's spend is already over cap, bail out
+  // with 429 before doing anything expensive.
+  try {
+    await assertWithinBudget();
+  } catch (e: unknown) {
+    return Response.json(
+      { error: e instanceof Error ? e.message : String(e) },
+      { status: 429 },
+    );
   }
   let body: {
     messages?: Message[];
@@ -1069,6 +1089,11 @@ export async function POST(req: NextRequest) {
             anthropicRes.body,
             (delta) => enqueue({ type: 'delta', text: delta }),
           );
+
+          // Fire-and-forget per-step usage log. logUsage swallows errors so a
+          // logging failure can't break the stream. Each tool-loop iteration
+          // is its own Anthropic call → its own row.
+          void logUsage({ model: MODEL, feature: 'chat', usage: result.usage });
 
           messages.push({ role: 'assistant', content: result.content });
 

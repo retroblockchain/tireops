@@ -7,6 +7,7 @@ import { loadFirstPhotosByTire } from '../lib/photos';
 import { useCurrentShop } from '../lib/useCurrentShop';
 import { TireCard } from './components/TireCard';
 import VoiceChat from './components/VoiceChat';
+import AiSpendBar from './components/AiSpendBar';
 
 // Dashboard tuning: keep the surfaces around the chat short so the chat
 // itself is unmistakably the primary action when the app opens.
@@ -382,6 +383,12 @@ export default function Home() {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* ----- AI spend: budget cap awareness ----- */}
+      <section style={{ marginBottom: 22 }}>
+        <h2 style={sectionHeaderStyle}>AI spend</h2>
+        <AiSpendBar />
       </section>
 
       {/* ----- Footer ----- */}
