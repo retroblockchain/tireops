@@ -142,3 +142,25 @@ Late refinement: when the canonical substitution differs from what the user said
 **What's NOT yet here, by design:** hands-free voice (separate sprint). Sizes-aware matching ("did you mean 235/55R17?"). Supabase-backed catalog (deferred — Vercel-side learning would require it, but the local-only commit-to-grow pattern works today). Cross-brand model disambiguation (Michelin's "Latitude" vs Continental's same name).
 
 **The lesson worth keeping:** the tier rule was wrong on first write because it treated "similar siblings exist" as ambiguity. A real ambiguity test isn't "any near-miss exists" — it's "the runner-up is close to the winner." That's the actual user-experience question: would the user have to think about which one? If yes, ask. If no, just substitute. Smoke-testing across 24 inputs caught the bug before it shipped; would have been a confidence-shaking demo otherwise.
+
+---
+
+## 2026-05-21 — Pivoting from hands-free to "smarter chat" (Phase 1)
+
+Hands-free voice (the B-sprint) stalled at B3.2 in a working-but-not-finished state. The B2 plumbing — VAD library, session UI, postinstall asset copy, the `.mjs` fix — all works on Android. But the leap from "captures voice segments" to "submits tires through chat" never landed because the underlying truth surfaced during real shop entry: tap-to-record plus the c01e01e tire-catalog flow is *already* fast enough. Hands-free was a theoretical improvement, not a felt pain point. So the B3 libs (Whisper transcribe + trigger-word detection) got committed dormant, and the energy moved to the surface that actually gets used every day.
+
+Today's Phase 1 was six prompt-only edits to make the existing chat noticeably smarter, no new code, no schema changes:
+
+1. **Correction-after-add (rule 16)**. If the user says "actually that was 225 not 215" right after adding a tire, the agent now calls `update_tire` on the just-inserted tire id instead of treating it as a fresh add. Single-sentence confirm for low-stakes tweaks ("Updated tire-170 to 225/55R17."); explicit yes for big changes (size, brand, model). Live-tested with `tire-170` and it worked exactly as designed — no duplicate, one-turn fix, AI used the correct id.
+
+2. **Counting-questions get summaries, not row dumps (rule 2)**. "How many summer tires?" now returns "we have 8 summer tires in 17 inch — 4 Michelins, 4 Continentals" instead of listing every row.
+
+3. **Stray context routes to `notes` (rule 3)**. "Add a Continental ExtremeContact DWS06 Plus 225/45R18 set of 4 customer John's truck 250 each done" now correctly extracts `notes: "For customer John's truck"` instead of dropping it or asking about it. Field-shaped content goes in fields; freeform context goes in notes. Worked first try.
+
+4. **Quantity is now a critical field for fill-in (rule 3)**. The asking-for-info priority was already "size, then brand, then quantity, then condition", but rule 3 only enforced asking for size or brand. Now quantity gets the same conversational follow-up if it's missing.
+
+5. **Rule numbering cleaned up.** Rules went 1-7, 9, 10, 12, 13, 14, 15, 16 — skipping 8 (a runtime-interpolated shop rule) and 11. Now it's a clean 1-16 with shopRule interpolating as 8.
+
+6. **"a set" → ask "set of 2 or 4?" — reverted.** Tried it; the AI overrode the rule because "a set" → 4 is too strong a prior in tire-shop English. Live tests confirmed the AI saved silently as quantity:4 anyway. Decided to keep "a set" → 4 silently and rely on rule 16 (correction-after-add) for the rare case where the user actually meant a pair. Friction beat correctness on this one.
+
+**The lesson worth keeping:** not all "should ask" rules actually fire when they fight a strong language prior. Test the rule against the real model before declaring it shipped. And when a rule fights a prior, look at whether a downstream safety net (in this case rule 16) already covers the rare case — if yes, accept the prior and skip the friction.
