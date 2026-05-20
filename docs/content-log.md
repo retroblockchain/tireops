@@ -84,3 +84,13 @@ The integration call shares the daily budget cap with the voice UI. There's one 
 Wrote a real `.env.local.example` covering the seven env vars tireops cares about: Supabase URL + anon key, Anthropic key, OpenAI key, the CRM integration shared secret, plus the optional daily budget cap and emergency bypass. Each one is documented in the file with: what it does, where to get the value, whether the app works without it.
 
 The reason this matters: tireops is going to be a Gumroad starter-kit companion to the CRM, and "set up your env" is the very first thing a buyer does after cloning the repo. A `.env.local.example` is the silent welcome handshake — the difference between "this looks intimidating" and "ok, I know what to fill in." It's also a small piece of public-build content. The story is "I made it easy for someone else to start" rather than "I'm secure" — which is the better headline anyway.
+
+---
+
+## 2026-05-19 — Tested the guardrail by actually triggering it
+
+The cost cap had been verified in one direction only — calls go through, get logged, spend appears in the dashboard widget. Today, drove it the other way: tightened `DAILY_AI_BUDGET_USD` to `$0.01` in `.env.local`, restarted the dev server, sent a chat request, and got back exactly the response the failure path is supposed to produce — `HTTP 429` with the body `{"error":"AI daily budget reached: $0.1393 of $0.01 spent today. Raise DAILY_AI_BUDGET_USD in your env to continue, or wait until UTC midnight."}`. The message came verbatim from the `assertWithinBudget()` throw, surfaced through the `try/catch` at the top of `/api/chat`.
+
+The pre-flight nature mattered: today's spend stayed at $0.139 after the 429, not $0.139 + epsilon, because the request never reached Anthropic. The cap fires *before* the API call rather than after — so once the budget is hit, no further Anthropic dollars accrue. Removed the override afterwards and confirmed the budget is back to $5 and the chat flow resumes.
+
+**The lesson worth keeping:** a guardrail isn't trustworthy until you've watched it stop you. The happy path looks identical whether your safety net works or not. Five minutes of "deliberately break it" is worth more than five months of "I'm sure it'll fire when it has to."
