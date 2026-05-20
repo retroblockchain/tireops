@@ -34,6 +34,9 @@ yarn-error.log*
 .env*
 !.env*.example
 
+# local data backups — JSON dumps from Supabase, never committed
+/backups/
+
 # vercel
 .vercel
 

@@ -100,3 +100,13 @@ The pre-flight nature mattered: today's spend stayed at $0.139 after the 429, no
 ## 2026-05-19 — Closing the security-and-guardrails arc
 
 The sprint started with a false alarm ("`.env.local` is committed to git!" — it wasn't) and ends with a working budget cap fired in both directions and verified RLS that makes `ai_usage_log` append-only from the anon role. The integration endpoint inherits the cap automatically because it delegates to `/api/chat`, so one $5/day ceiling protects both the voice UI and the CRM-to-tireops bridge. Five commits, two content-log moments worth posting (the false-alarm story and the first two-app handshake), zero keys rotated unnecessarily, zero git history rewrites. Tireops goes dormant now until either a real bug, a CRM-side change that needs a counterpart here, or the eventual Phase 5 schema-capture pass.
+
+---
+
+## 2026-05-20 — Clean slate for the first real tire
+
+Tireops had 113 test tires sitting in the database under "TEST" and "Test Shop" — leftovers from earlier development. Today, before adding real inventory for the first time, wiped them. Snapshotted everything to `backups/snapshot-2026-05-20_181307Z.json` (96 KB, all 189 rows across 4 tables, gitignored so it stays local) so the test setup can be restored if there's ever a reason. Ran `scripts/reset-test-data.sql` in Supabase: cleared `tires`, `tire_photos`, `activity_log`, `bug_reports`, reset the `tire_number` sequence to start fresh. Kept `ai_usage_log` intact since the budget-cap baseline is still useful even if the test calls that produced it aren't.
+
+The next tire added to this database becomes **tire-1**. A real one this time.
+
+**The lesson worth keeping:** snapshot before you wipe, even when you're sure it's all test data. The snapshot took 5 seconds to generate and zero seconds to be glad I had it. Reversible destruction beats irreversible destruction every time.
