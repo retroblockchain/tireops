@@ -164,3 +164,21 @@ Today's Phase 1 was six prompt-only edits to make the existing chat noticeably s
 6. **"a set" → ask "set of 2 or 4?" — reverted.** Tried it; the AI overrode the rule because "a set" → 4 is too strong a prior in tire-shop English. Live tests confirmed the AI saved silently as quantity:4 anyway. Decided to keep "a set" → 4 silently and rely on rule 16 (correction-after-add) for the rare case where the user actually meant a pair. Friction beat correctness on this one.
 
 **The lesson worth keeping:** not all "should ask" rules actually fire when they fight a strong language prior. Test the rule against the real model before declaring it shipped. And when a rule fights a prior, look at whether a downstream safety net (in this case rule 16) already covers the rare case — if yes, accept the prior and skip the friction.
+
+---
+
+## 2026-05-21 — Smarter chat Phase 4: size validation finally uses the catalog's `common_sizes`
+
+The tire catalog from sprint c01e01e had recorded 1,075 "common sizes" across 215 models as informational metadata, but the matcher never looked at them. So if a voice transcription garbled "245/40R18" into "245/40R88," the agent would happily save the wrong size and the user would have to catch it later in /inventory.
+
+Today's edit closes that loop. New `matchSize(brand, model, inputSize)` in `lib/tire-catalog.ts` runs after the brand + model matchers in `runAddTire`. It's deliberately conservative — only flags when there's a clear single-digit typo in the size relative to one of the model's known common_sizes. No common_sizes recorded for the model? Pass through. User-given size has no close catalog candidate? Pass through. The friction-cost of false positives is too high for incomplete catalog data, so the matcher errs on the side of silence.
+
+When a typo IS caught, the new `needs_size_confirmation` status flows through to a fourth sub-bullet in rule 15 of the system prompt. The agent asks once, the user confirms, the retry passes `confirmed_size: true` to bypass the check. Same exact pattern as brand and model confirmation — third tier of the catalog's three-tier confidence model, now extended to sizes too.
+
+Live-tested on the real chat. A user dictating "Michelin Pilot Sport 4S 245/40R88" gets back: *"That size looks off — did you mean 245/40R18? Sounds like '88' might have been a garble for '18.' Say yes to confirm or give me the correct size."* The agent generated that natural explanation itself from the data (`original: "245/40R88"`, `suggested: "245/40R18"`) — no hardcoded phrasing. After "yes" → tire-173 saved with the correct 245/40R18.
+
+And the contrast case: dictating "Michelin Pilot Sport 4S 215/65R15" (legitimate but unusual size, no catalog near-match) passed through silently in a single tool call to tire-174. No friction on real edge-case inventory.
+
+11 unit tests on the matcher itself pass — exact match, digit typos at every position, case/whitespace normalization, unknown brand/model, empty common_sizes, length differences (LT prefix vs not). The matcher's regex is precise about what counts as a "digit typo" — same length, exactly one position differs, both characters at that position must be digits. Letter swaps (R vs Z, P prefix) don't qualify, length mismatches don't qualify. Pure single-digit substitutions only.
+
+**The lesson worth keeping:** when validation data is incomplete, the right default is silence, not friction. The catalog's common_sizes covers maybe 40-60% of real shop inventory; flagging every non-match would mean the user gets bugged on every odd-size truck tire and old retro size. Limiting the flag to "differs by exactly one digit" cuts the false-positive rate to near zero while still catching the actual Whisper failures the feature exists to catch.

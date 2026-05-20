@@ -58,6 +58,19 @@ export interface MatchResult {
   original: string;
 }
 
+export type SizeMatchStatus = 'high' | 'needs_confirmation';
+
+export interface SizeMatchResult {
+  status: SizeMatchStatus;
+  /** The size string to use as-is on insert. Same as the user gave on
+   * 'high'; on 'needs_confirmation' the caller should not insert yet. */
+  match: string;
+  original: string;
+  /** When status is 'needs_confirmation', the catalog size that differs
+   * from `original` by exactly one digit — the likely intended size. */
+  suggested?: string;
+}
+
 // Tier thresholds — see the plan for rationale.
 // HIGH gate: top score must clear 0.85.
 // FLOOR: anything below 0.6 is treated as no match at all.
@@ -177,6 +190,82 @@ export async function matchModel(brand: string, input: string): Promise<MatchRes
     score: bestScore(trimmed, m.name, m.aliases),
   }));
   return { ...tierFromScores(scored), original: trimmed };
+}
+
+// --------- Size validation ---------
+
+function normalizeSize(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, '');
+}
+
+// True iff a and b have the same length AND differ at exactly one position
+// AND that one position is a digit on both sides. So "245/40r18" vs
+// "245/40r88" matches (one digit typo); "245/40r18" vs "245/40z18" doesn't
+// (letter swap, not a digit); "lt265/70r17" vs "265/70r17" doesn't (length
+// mismatch — different tire family).
+function isDigitTypo(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diffs = 0;
+  let diffIdx = -1;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) {
+      diffs++;
+      if (diffs > 1) return false;
+      diffIdx = i;
+    }
+  }
+  if (diffs !== 1) return false;
+  return /\d/.test(a[diffIdx]) && /\d/.test(b[diffIdx]);
+}
+
+// Validate a user-given size against the catalog's known common_sizes for
+// the resolved brand+model. Conservative: only flag when there's a clear
+// digit-typo near-miss in the catalog. If the model has no recorded sizes,
+// or no size is close, pass the user's size through silently — the catalog
+// isn't comprehensive and we don't want false-positive friction.
+export async function matchSize(
+  brand: string,
+  model: string,
+  inputSize: string,
+): Promise<SizeMatchResult> {
+  const trimmed = (inputSize || '').trim();
+  if (!trimmed) return { status: 'high', match: trimmed, original: trimmed };
+
+  const catalog = await loadCatalog();
+  const brandEntry = catalog.brands.find(
+    (b) => normalize(b.name) === normalize(brand),
+  );
+  if (!brandEntry) return { status: 'high', match: trimmed, original: trimmed };
+  const modelEntry = brandEntry.models.find(
+    (m) => normalize(m.name) === normalize(model),
+  );
+  if (!modelEntry) return { status: 'high', match: trimmed, original: trimmed };
+  const sizes = modelEntry.common_sizes;
+  if (!sizes || sizes.length === 0) {
+    return { status: 'high', match: trimmed, original: trimmed };
+  }
+
+  const n = normalizeSize(trimmed);
+  // Exact match (case + whitespace insensitive) → accept silently, using
+  // the catalog's canonical form (preserves R / ZR capitalization, etc.).
+  for (const s of sizes) {
+    if (normalizeSize(s) === n) {
+      return { status: 'high', match: s, original: trimmed };
+    }
+  }
+  // No exact match — look for a single-digit-typo near match.
+  for (const s of sizes) {
+    if (isDigitTypo(normalizeSize(s), n)) {
+      return {
+        status: 'needs_confirmation',
+        match: trimmed,
+        original: trimmed,
+        suggested: s,
+      };
+    }
+  }
+  // No exact match, no near match — accept as-is. Catalog may be incomplete.
+  return { status: 'high', match: trimmed, original: trimmed };
 }
 
 // --------- Persistence ---------

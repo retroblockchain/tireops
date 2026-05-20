@@ -7,6 +7,7 @@ import { assertWithinBudget, logUsage, type AnthropicUsage } from '../../../lib/
 import {
   matchBrand,
   matchModel,
+  matchSize,
   addBrandToCatalog,
   addModelToCatalog,
 } from '../../../lib/tire-catalog';
@@ -115,7 +116,8 @@ ${shopRule}
    a. NORMAL INSERT (no status field): the brand/model matched the catalog cleanly. The tire is saved. WHEN THE CANONICAL SPELLING DIFFERS FROM WHAT THE USER SAID — even slightly — always call out the substitution explicitly in your reply so the user has a chance to catch a wrong correction. Example: user says "Mishelin Pilot Spore four S", you save as "Michelin Pilot Sport 4S", reply: "I saved that as Michelin Pilot Sport 4S — let me know if you meant something different." For exact matches where no substitution happened, just confirm normally without flagging.
    b. \`status: "needs_brand_confirmation"\` (or \`"needs_model_confirmation"\`): the matcher found close candidates but isn't sure. The response includes the user's original string and up to 3 candidates with similarity scores. Ask the user briefly which they meant — e.g., "Did you mean Bridgestone? Or Continental?" — and wait for the answer in a SEPARATE turn. Then retry add_tire with the chosen canonical name AND \`confirmed_brand: true\` (or \`confirmed_model: true\`). Don't include both fields if only one needed confirming.
    c. \`status: "unknown_brand"\` (or \`"unknown_model"\`): no candidate matched. Ask the user to spell or confirm the term (e.g., "I don't have that brand in my catalog — can you spell it for me?"). ONLY after they answer in a SEPARATE turn, call \`learn_tire_term({ kind: "brand"|"model", name: "...", brand: "..." for kind=model })\` to teach the catalog. Then retry add_tire with \`confirmed_brand: true\` and/or \`confirmed_model: true\`.
-   The order is brand first (must resolve before the model can be looked up), then model. If both are unknown, learn the brand first, then learn the model under it. ALWAYS pass \`confirmed_brand: true\` and/or \`confirmed_model: true\` on the retry — without those flags, the matcher will run again and you'll loop on the same prompt. Don't pre-emptively call learn_tire_term for brands or models you suspect are missing — only after the matcher actually returns unknown_brand or unknown_model and the user confirms the spelling.
+   d. \`status: "needs_size_confirmation"\`: the brand and model resolved cleanly, but the size doesn't appear in the catalog's known common_sizes for that model AND one of the known common_sizes differs from the user's size by exactly one digit (a likely typo or Whisper digit-garble — e.g., "245/40R88" vs known "245/40R18"). The response includes the user's original size and the suggested catalog size. Ask the user briefly: "Did you mean 245/40R18 — what you said sounds like a typo." Wait for the answer in a SEPARATE turn. Then retry add_tire with the chosen size (the suggested one, or the user's original if they confirm it was right) AND \`confirmed_size: true\` to bypass the check. If the catalog has no common_sizes for the model, OR no common_size is close to what the user said, the size passes through silently — the catalog isn't comprehensive enough to bug the user with false positives.
+   The order is brand first (must resolve before the model can be looked up), then model, then size. ALWAYS pass the relevant confirmed_* flag on the retry — without those flags, the matcher will run again and you'll loop on the same prompt. Don't pre-emptively call learn_tire_term for brands or models you suspect are missing — only after the matcher actually returns unknown_brand or unknown_model and the user confirms the spelling.
 16. CORRECTIONS RIGHT AFTER A SAVE. If the user's next turn after a successful add_tire looks like a correction to that tire — phrases like "actually...", "I meant...", "no, that was...", "change that to...", "make that...", "scratch that, [field] is X" — call update_tire on the just-inserted tire's id rather than treating the turn as a new add_tire. The correction window is roughly 30 seconds OR until the user does something else (asking about a different tire, starting a new add, switching topics) — if more time passes or other activity intervenes, treat the next turn as fresh and don't auto-update. For non-trivial changes to a critical field (size, brand, model), confirm briefly before saving: "Got it — updating tire-150 size from 215 to 225, save?" For small low-stakes tweaks (notes, price, single field), just do the update and confirm in one short sentence ("Updated tire-150 to $220 each."). Note that rules 11 and 13 (status, location) still apply if the correction is to those fields — get explicit yes before updating, since those are operationally heavier.`;
 }
 
@@ -172,6 +174,10 @@ const TOOLS = [
         confirmed_model: {
           type: 'boolean',
           description: 'Same as confirmed_brand but for the model name.',
+        },
+        confirmed_size: {
+          type: 'boolean',
+          description: 'Set to true when retrying add_tire after the user has confirmed the tire size (responding to a needs_size_confirmation prompt). Bypasses the catalog size-validity check.',
         },
       },
     },
@@ -425,6 +431,30 @@ async function runAddTire(
     } else {
       return { status: 'unknown_model', brand: row.brand, original: r.original };
     }
+  }
+
+  // Size validation — only runs after both brand and model are resolved.
+  // Conservative: only flags clear digit-typo near-misses (e.g.,
+  // "245/40R88" -> "245/40R18"). Unknown brand/model, model with no
+  // common_sizes, or sizes with no near catalog match all pass through.
+  if (
+    typeof row.size === 'string' &&
+    row.size.trim() &&
+    typeof row.brand === 'string' &&
+    typeof row.model === 'string' &&
+    !input.confirmed_size
+  ) {
+    const r = await matchSize(row.brand, row.model, row.size);
+    if (r.status === 'needs_confirmation') {
+      return {
+        status: 'needs_size_confirmation',
+        brand: row.brand,
+        model: row.model,
+        original: r.original,
+        suggested: r.suggested,
+      };
+    }
+    row.size = r.match; // canonical (case/whitespace) form when exact match
   }
 
   const missing = RECOMMENDED_FIELDS.filter((f) => row[f] === undefined);
