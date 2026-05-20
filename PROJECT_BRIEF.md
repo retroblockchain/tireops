@@ -346,15 +346,12 @@ Recent theme: UI refinement (chat prominence on home, navigation cleanup, invent
 The [CRM](c:\Users\chedd\crm-app) is designed to call into tireops eventually. The plan:
 
 1. Add an `ask_inventory(question: string) → string` tool to the CRM's AskBox assistant
-2. The tool POSTs to tireops's `/api/chat` (with an auth header to be defined) and returns the streamed answer
+2. The tool POSTs to tireops's `POST /api/integration/inventory` (a dedicated, auth-gated wrapper around `/api/chat`) and returns the streamed answer
 3. The CRM's customer-facing replies become inventory-aware — "do we have 225/65R17 in winter?" becomes answerable inline
 
-**Auth between the two apps:** TBD. Options being considered:
-- Shared secret header (`X-Inventory-Token`)
-- Service-account JWT from a shared Supabase project
-- Cross-account access via Supabase service-role keys (simplest; risky for the principle of least privilege)
+**Auth between the two apps: shared secret header.** Decided 2026-05-19 — see [`docs/decisions/0001-crm-integration-auth.md`](./docs/decisions/0001-crm-integration-auth.md) for the rationale. tireops reads `CRM_INTEGRATION_TOKEN` from env; the CRM sends `X-Inventory-Token: <token>` on every call. Missing or wrong token → 401. The contract for callers lives at [`docs/integration-api.md`](./docs/integration-api.md).
 
-See the CRM's `docs/inventory-integration-plan.md` (will exist after Phase 3 of the CRM work) for the full design.
+Note: the integration endpoint shares tireops's daily AI budget cap (see §7). High-volume integration use will count against the shop floor's $5/day pool unless the budgets are split later.
 
 ---
 
