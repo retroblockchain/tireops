@@ -214,3 +214,19 @@ The bumped `MAX_HISTORY_TURNS = 40` from Phase 2 makes this work end-to-end. Eve
 The rule also has guard clauses: don't apply when the user explicitly names a different brand or model (their words override), don't apply when there's no recent add (a session that's only had search/update/delete operations doesn't have an "in-context tire" to reference), don't apply when the conversation has moved through unrelated topics in between. The point is to handle the *flow* moment of batch dictation, not to over-infer in mixed conversations.
 
 **The lesson worth keeping:** at the time we set `MAX_HISTORY_TURNS = 12` it felt generous. Once the catalog matcher landed and started enabling longer batch sessions, 12 was the limit on how natural the conversation could feel. Sometimes a config constant that seemed fine *creates the ceiling* on a feature you didn't yet have. When a new feature touches an old constant, look back at the constant.
+
+---
+
+## 2026-05-21 — Smarter chat 5.A: zero-result searches now broaden + suggest alternatives
+
+The original rule 6 said: *"If a tool returns zero results, say so plainly — never invent tire details to fill the gap."* That was the right safety rule but it left the assistant doing the conversational equivalent of "nope, we don't have it" and stopping. For both shop-floor staff and the CRM-integration channel feeding inventory questions from customers, that's a missed chance — there are usually real alternatives in stock that the user would happily hear about.
+
+Today's edit rewrites rule 6. The agent now: states plainly there's no exact match, then makes ONE broader follow-up search by dropping the most-likely-too-restrictive filter (usually size, sometimes season, sometimes brand), presents 2-3 real rows from the broader search as alternatives, and stops there. The "never invent" safety is preserved — alternatives must come from real search_tires results, not the agent's imagination — and the bound on broadening (exactly one round, not a runaway filter-relaxation loop) keeps the response time and cost predictable.
+
+Live-tested two scenarios. First: "any 245/40R18 winter tires?" — we have zero 245-width tires of any kind in inventory. The agent searched exactly, then tried broadening to `{ season: "winter", query: "245" }`, got 0 again, replied "Nothing close either — we've got no 245-width winter tires in stock at all. Want me to check a different size or season?" Stopped after the second 0, didn't recurse, didn't fabricate.
+
+Second test: "any Michelin Pilot Sport 4S in 225/45R17?" — we have several Pilot Sport 4S entries but none in that specific size. The agent searched exactly (0), then broadened by dropping size (6 rows), then replied with the 6 rows grouped naturally by size — "225/55R17 — set of 4 (tire-170); 245/40R18 — sets of 4, multiple entries (tire-140, tire-173, tire-175); 245/40R20 — set of 4, $220 each (tire-176)". The grouping was emergent — I didn't tell the agent to collapse duplicate-size entries, it just did because the question was about a size class and listing every single row would have been noise.
+
+The change applies to both the in-app chat AND the CRM integration endpoint, since both delegate to /api/chat with the same system prompt. That wasn't the original plan — the plan said "scoped to the integration path" — but on reflection, shop staff get the same UX win and there's no downside to having both surfaces share the behavior.
+
+**The lesson worth keeping:** the rule-6-as-was wasn't wrong, it was just *incomplete*. "Never invent" is a safety rule about what NOT to do; it never said anything about what TO do when the user wants something we don't have. The new rule keeps the safety AND fills the gap. Sometimes the next iteration of a rule is "you're right about what you forbade — now tell the AI what to actually do instead."
