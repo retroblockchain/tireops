@@ -53,3 +53,34 @@ Worth recording why I *didn't* go fancier:
 The smallest auth that fits the threat model. The decision record at `docs/decisions/0001-crm-integration-auth.md` spells out when it'll be time to graduate to something heavier (third-party callers, audit needs, multi-tenancy).
 
 **The lesson worth keeping:** match the auth complexity to the actual threat model. Two-app shared ownership is a different problem from a public API, and pretending otherwise costs weeks of integration work for zero security gain.
+
+---
+
+## 2026-05-19 — Two AI apps just had their first conversation
+
+Fired the first end-to-end integration query against the new endpoint. From a curl on the command line, posing as the CRM:
+
+```
+POST /api/integration/inventory
+X-Inventory-Token: <shared secret>
+
+{ "query": "do we have any winter tires in stock?", "shop": "Mission" }
+```
+
+The response streamed back through NDJSON: Claude called the `search_tires` tool, the database returned 20 winter tires across Bridgestone Blizzak, Continental VikingContact, Michelin X-Ice/X-Ice Snow, and Pirelli Winter Sottozero. Claude grouped them by brand, summarized the size ranges and condition mix, and ended with "Want me to narrow it down by size or anything else?" — the same voice the in-app chat uses. The CRM, when it eventually calls this endpoint, will pipe that text directly into its customer-facing reply.
+
+Two things worth recording:
+
+The spend log captured the call correctly. Today's usage went from $0.103 to $0.139 — that's a single integration query, but it was a *two-step* call (Claude first invoked the search tool, then synthesized the answer in a second Anthropic round-trip), and the cost guardrail logged both as separate rows. So if a CRM customer ever generates an unusual spike, I can break it down per tool-loop step in the database.
+
+The integration call shares the daily budget cap with the voice UI. There's one $5/day pool covering both surfaces. If integration volume ever crowds out the shop floor's voice chat, that's the moment to split them into separate budgets — but it's a problem worth not solving until it exists.
+
+**The lesson worth keeping:** the moment two AI agents start talking is anticlimactic in the best way. There's no celebration screen, no "AI shakes hands with AI" animation. There's just a streamed natural-language answer that flows back through a channel you built, with all the usual safety rails (auth, RLS, budget cap, prompt cache) applying invisibly. The dramatic version is what we promise. The quiet version is what we ship.
+
+---
+
+## 2026-05-19 — `.env.local.example` because setup deserves a map
+
+Wrote a real `.env.local.example` covering the seven env vars tireops cares about: Supabase URL + anon key, Anthropic key, OpenAI key, the CRM integration shared secret, plus the optional daily budget cap and emergency bypass. Each one is documented in the file with: what it does, where to get the value, whether the app works without it.
+
+The reason this matters: tireops is going to be a Gumroad starter-kit companion to the CRM, and "set up your env" is the very first thing a buyer does after cloning the repo. A `.env.local.example` is the silent welcome handshake — the difference between "this looks intimidating" and "ok, I know what to fill in." It's also a small piece of public-build content. The story is "I made it easy for someone else to start" rather than "I'm secure" — which is the better headline anyway.
