@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ricky0123/vad-web": "^0.0.30",
     "@supabase/supabase-js": "^2.105.4",
     "next": "16.2.6",
     "react": "19.2.4",
