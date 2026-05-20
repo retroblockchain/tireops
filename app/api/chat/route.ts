@@ -30,9 +30,13 @@ const UNASSIGNED_SHOP = 'Unassigned';
  * How many user-initiated turns to keep when sending the conversation to
  * Anthropic. Older turns are dropped from the API request (the client still
  * shows the full visible chat — this just caps the per-request payload).
- * 12 is generous for shop-floor flows while staying well under rate limits.
+ * Bumped from 12 -> 40 on 2026-05-21 to support long batch sessions
+ * (entering 20+ tires in a row) where the agent benefits from seeing
+ * earlier context for cross-entry references like "another one in
+ * 215/55R17". Cost impact is small because the system prompt is cached;
+ * the marginal cost is the extra user/assistant turn tokens.
  */
-const MAX_HISTORY_TURNS = 12;
+const MAX_HISTORY_TURNS = 40;
 
 function buildSystemPrompt(currentShop: string): string {
   const knownShop = currentShop && currentShop !== UNASSIGNED_SHOP;

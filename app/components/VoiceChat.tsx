@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLORS, RADII, SHADOWS } from '../../lib/theme';
 import { useAuthInfo } from '../../lib/useCurrentShop';
 import { uploadPendingPhoto } from '../../lib/photos';
@@ -809,6 +809,45 @@ export default function VoiceChat({
   const micBg = recording ? COLORS.redDeep : COLORS.red;
   const micGlow = recording ? '0 0 0 6px rgba(200,16,46,0.25)' : 'none';
 
+  // Last 3 successful add_tire inserts in this session — derived from the
+  // chat history. Walks apiMessages in reverse, parses tool_result JSON
+  // looking for inserted.tire_number. Used by the "recent adds" pill strip
+  // just above the mic row. Order: newest first.
+  const recentAdds = useMemo(() => {
+    type RecentTire = {
+      id: string;
+      tire_number: number;
+      brand?: string;
+      model?: string;
+      size?: string;
+    };
+    const out: RecentTire[] = [];
+    for (let i = apiMessages.length - 1; i >= 0 && out.length < 3; i--) {
+      const msg = apiMessages[i];
+      if (msg.role !== 'user' || typeof msg.content === 'string') continue;
+      for (const block of msg.content) {
+        if (block.type !== 'tool_result') continue;
+        try {
+          const parsed = JSON.parse(block.content);
+          const ins = parsed?.inserted;
+          if (ins && typeof ins.tire_number === 'number' && typeof ins.id === 'string') {
+            out.push({
+              id: ins.id,
+              tire_number: ins.tire_number,
+              brand: typeof ins.brand === 'string' ? ins.brand : undefined,
+              model: typeof ins.model === 'string' ? ins.model : undefined,
+              size: typeof ins.size === 'string' ? ins.size : undefined,
+            });
+            if (out.length >= 3) break;
+          }
+        } catch {
+          // tool_result content wasn't JSON or wasn't an add_tire result — skip
+        }
+      }
+    }
+    return out;
+  }, [apiMessages]);
+
   const innerContent = (
     <>
       <style>{`
@@ -1429,6 +1468,65 @@ export default function VoiceChat({
         onChange={onPickFile}
         style={{ display: 'none' }}
       />
+
+      {/* Recent-adds strip — last 3 successfully-added tires in this session.
+          Tappable to jump to the tire's edit page. Hidden when no adds yet. */}
+      {recentAdds.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            overflowX: 'auto',
+            paddingBottom: 6,
+            marginBottom: 4,
+            flexShrink: 0,
+            WebkitOverflowScrolling: 'touch',
+            alignItems: 'center',
+          }}
+        >
+          <span
+            style={{
+              flexShrink: 0,
+              fontSize: 10,
+              fontWeight: 700,
+              color: COLORS.textMuted,
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+              paddingLeft: 2,
+              paddingRight: 4,
+            }}
+          >
+            Recent:
+          </span>
+          {recentAdds.map((t) => {
+            const summary = [t.brand, t.model, t.size].filter(Boolean).join(' ');
+            return (
+              <a
+                key={t.id}
+                href={`/edit/${t.id}`}
+                title={`Open tire-${t.tire_number} for editing`}
+                style={{
+                  flexShrink: 0,
+                  padding: '5px 10px',
+                  background: COLORS.surface,
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: RADII.pill,
+                  fontSize: 12,
+                  color: COLORS.textBody,
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                  lineHeight: 1.3,
+                }}
+              >
+                <strong style={{ color: COLORS.ink }}>tire-{t.tire_number}</strong>
+                {summary && (
+                  <span style={{ color: COLORS.textMuted, marginLeft: 6 }}>{summary}</span>
+                )}
+              </a>
+            );
+          })}
+        </div>
+      )}
 
       <div
         style={{

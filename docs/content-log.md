@@ -182,3 +182,17 @@ And the contrast case: dictating "Michelin Pilot Sport 4S 215/65R15" (legitimate
 11 unit tests on the matcher itself pass — exact match, digit typos at every position, case/whitespace normalization, unknown brand/model, empty common_sizes, length differences (LT prefix vs not). The matcher's regex is precise about what counts as a "digit typo" — same length, exactly one position differs, both characters at that position must be digits. Letter swaps (R vs Z, P prefix) don't qualify, length mismatches don't qualify. Pure single-digit substitutions only.
 
 **The lesson worth keeping:** when validation data is incomplete, the right default is silence, not friction. The catalog's common_sizes covers maybe 40-60% of real shop inventory; flagging every non-match would mean the user gets bugged on every odd-size truck tire and old retro size. Limiting the flag to "differs by exactly one digit" cuts the false-positive rate to near zero while still catching the actual Whisper failures the feature exists to catch.
+
+---
+
+## 2026-05-21 — Smarter chat Phase 2: recent-adds strip + bigger session memory
+
+Two related changes that land together in a single commit. Both about making batch entry sessions feel coherent instead of fragmented.
+
+First, the chat agent's history window. `MAX_HISTORY_TURNS` had been pinned at 12 since the original build — generous for a single-tire conversation but tight for a 20-tire batch where each tire is 2-3 turns. Bumped to 40. Cost is trivial because the big system prompt is cached on Anthropic's side (cache_control: ephemeral has been on since the cost-guardrails sprint), so the marginal cost is just the user-and-assistant text tokens, which are tiny per turn. The agent can now see the entire context of a normal-sized batch session, which sets up Phase 3 ("same as last" cross-entry references) to work without the agent forgetting what the last tire was.
+
+Second, a "recent adds" strip in the chat UI. Small horizontal scroll just above the mic row, showing the last 3 successfully-added tires in the session as tappable pills (`tire-141 Bridgestone Blizzak WS90 215/55R17`). Each one is a link to `/edit/{id}` so a tap opens the tire's edit page directly. The strip derives from the existing `apiMessages` chat state — a `useMemo` walks the message history backwards, parses tool_result JSON for `inserted.tire_number`, collects the most recent three. No new server endpoints, no new database queries. The data was already there; the UI just surfaces it.
+
+The strip is renderless-when-empty. New users (or after "New chat") see the chat exactly as before. Once you've added a tire in this session, the strip appears and grows up to three pills wide. Tap any pill and you're on its edit page — useful for quick double-checks of "did that just save the right way?" without scrolling up through the chat to find the AI's confirmation text.
+
+**The lesson worth keeping:** the most useful UI surfaces often turn existing invisible state into visible state, with zero new state to manage. The recent-adds strip is 50 lines of code and adds capability that *feels* substantial — but every byte of data it shows already existed in apiMessages, just invisibly. The cost is a useMemo and some CSS. The win is "where did that just go?" answered at a glance, every time.
