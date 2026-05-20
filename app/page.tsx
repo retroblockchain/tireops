@@ -56,6 +56,13 @@ export default function Home() {
     ).length,
   }));
   const totalInStock = liveTires.length;
+  // Sum of physical-tire quantity across all available listings. This is
+  // the "how many tires are actually on the shop floor" number, distinct
+  // from totalInStock which counts listings (database rows). A row with
+  // quantity 4 contributes 4 to this sum but 1 to totalInStock.
+  const tiresInStockQty = tires
+    .filter((t) => t.status === 'available')
+    .reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
 
   return (
     <main
@@ -346,7 +353,47 @@ export default function Home() {
               </div>
             </div>
           ))}
-          {/* Grand total — visually accented so it reads as the headline number. */}
+          {/* Listings — count of non-sold rows. Less prominent now that the
+              real headline number is total physical tires (next tile). */}
+          <div
+            style={{
+              padding: '10px 6px',
+              background: COLORS.surface,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: RADII.card,
+              textAlign: 'center',
+              boxShadow: SHADOWS.card,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 22,
+                fontWeight: 800,
+                color: COLORS.ink,
+                letterSpacing: -0.4,
+                lineHeight: 1,
+              }}
+            >
+              {totalInStock}
+            </div>
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: COLORS.textMuted,
+                letterSpacing: 0.4,
+                textTransform: 'uppercase',
+                marginTop: 6,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Listings
+            </div>
+          </div>
+          {/* Tires in stock — the new headline number. Sum of physical
+              tires (not listings) across all available-status rows.
+              Allows label wrap to two lines because "TIRES IN STOCK"
+              is wider than 72px at 10px font. */}
           <div
             style={{
               padding: '10px 6px',
@@ -366,7 +413,7 @@ export default function Home() {
                 lineHeight: 1,
               }}
             >
-              {totalInStock}
+              {tiresInStockQty}
             </div>
             <div
               style={{
@@ -376,10 +423,12 @@ export default function Home() {
                 letterSpacing: 0.4,
                 textTransform: 'uppercase',
                 marginTop: 6,
-                whiteSpace: 'nowrap',
+                // Two-line wrap; "TIRES IN STOCK" is wider than 72px.
+                whiteSpace: 'normal',
+                lineHeight: 1.15,
               }}
             >
-              Total
+              Tires in stock
             </div>
           </div>
         </div>
