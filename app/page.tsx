@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { APP_VERSION } from '../lib/version';
 import { COLORS, RADII, SHADOWS } from '../lib/theme';
@@ -21,6 +21,47 @@ const sectionHeaderStyle: React.CSSProperties = {
   letterSpacing: 0.5,
   margin: '0 0 8px',
   fontWeight: 700,
+};
+
+// Styles for the Stock table — small uppercase column headers, mid-weight
+// shop names, tabular-nums numbers so digits column-align across rows.
+const tableHeaderCellStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 700,
+  color: COLORS.textMuted,
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+  textAlign: 'right',
+};
+const tableShopCellStyle: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 500,
+  color: COLORS.textBody,
+  textAlign: 'left',
+};
+const tableNumberCellStyle: React.CSSProperties = {
+  fontSize: 18,
+  fontWeight: 700,
+  color: COLORS.ink,
+  textAlign: 'right',
+  fontVariantNumeric: 'tabular-nums',
+};
+const tableTotalLabelStyle: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 800,
+  color: COLORS.textBody,
+  textAlign: 'left',
+  borderTop: `1px solid ${COLORS.border}`,
+  paddingTop: 10,
+};
+const tableTotalNumberStyle: React.CSSProperties = {
+  fontSize: 22,
+  fontWeight: 800,
+  color: COLORS.red,
+  textAlign: 'right',
+  fontVariantNumeric: 'tabular-nums',
+  borderTop: `1px solid ${COLORS.border}`,
+  paddingTop: 10,
 };
 
 export default function Home() {
@@ -45,24 +86,39 @@ export default function Home() {
 
   const recentAdded = liveTires.slice(0, RECENT_ADDED);
 
-  // Per-shop in-stock count, fixed to the three named shops. Tires saved
-  // under other shop names (legacy, "TEST", Unassigned) aren't counted in
-  // the per-shop tiles, but they DO contribute to the grand total since
-  // they're still in stock somewhere.
-  const shopCounts = SHOP_NAMES.map((shop) => ({
-    shop,
-    count: liveTires.filter(
+  // Per-shop metrics for the Stock table: count of available listings +
+  // sum of physical-tire quantity. Both columns use status='available'
+  // (strict) so the two numbers come from the same source-of-truth row
+  // set. If reserved/pending statuses ever appear, they'd be excluded
+  // from both columns identically — keeps the math honest.
+  const NAMED_LC = new Set(SHOP_NAMES.map((s) => s.toLowerCase()));
+  const availableTires = tires.filter((t) => t.status === 'available');
+  const shopMetrics = SHOP_NAMES.map((shop) => {
+    const rows = availableTires.filter(
       (t) => (t.shop || '').trim().toLowerCase() === shop.toLowerCase(),
-    ).length,
-  }));
-  const totalInStock = liveTires.length;
-  // Sum of physical-tire quantity across all available listings. This is
-  // the "how many tires are actually on the shop floor" number, distinct
-  // from totalInStock which counts listings (database rows). A row with
-  // quantity 4 contributes 4 to this sum but 1 to totalInStock.
-  const tiresInStockQty = tires
-    .filter((t) => t.status === 'available')
-    .reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
+    );
+    return {
+      shop,
+      listings: rows.length,
+      tires: rows.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0),
+    };
+  });
+  // Catch-all: any available tires whose shop is outside the named three
+  // (legacy values, "TEST" leftovers, typos, null shop). Renders as an
+  // "Other" row in the table ONLY when non-zero, so the totals always
+  // equal the sum of visible rows. Today this should be empty.
+  const otherRows = availableTires.filter(
+    (t) => !NAMED_LC.has((t.shop || '').trim().toLowerCase()),
+  );
+  const otherMetric = {
+    shop: 'Other',
+    listings: otherRows.length,
+    tires: otherRows.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0),
+  };
+  const allMetrics =
+    otherMetric.listings > 0 ? [...shopMetrics, otherMetric] : shopMetrics;
+  const totalListings = allMetrics.reduce((s, m) => s + m.listings, 0);
+  const totalTires = allMetrics.reduce((s, m) => s + m.tires, 0);
 
   return (
     <main
@@ -303,133 +359,43 @@ export default function Home() {
         )}
       </section>
 
-      {/* ----- Stock pulse: per-shop in-stock counts + grand total ----- */}
+      {/* ----- Stock: per-shop listings + physical tires + total row ----- */}
       <section style={{ marginBottom: 22 }}>
         <h2 style={sectionHeaderStyle}>Stock</h2>
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(72px, 1fr))',
-            gap: 8,
+            background: COLORS.surface,
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: RADII.card,
+            boxShadow: SHADOWS.card,
+            padding: '14px 16px',
           }}
         >
-          {shopCounts.map(({ shop, count }) => (
-            <div
-              key={shop}
-              style={{
-                padding: '10px 6px',
-                background: COLORS.surface,
-                border: `1px solid ${COLORS.border}`,
-                borderRadius: RADII.card,
-                textAlign: 'center',
-                boxShadow: SHADOWS.card,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 22,
-                  fontWeight: 800,
-                  color: COLORS.ink,
-                  letterSpacing: -0.4,
-                  lineHeight: 1,
-                }}
-              >
-                {count}
-              </div>
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: COLORS.textMuted,
-                  letterSpacing: 0.4,
-                  textTransform: 'uppercase',
-                  marginTop: 6,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {shop}
-              </div>
-            </div>
-          ))}
-          {/* Listings — count of non-sold rows. Less prominent now that the
-              real headline number is total physical tires (next tile). */}
           <div
             style={{
-              padding: '10px 6px',
-              background: COLORS.surface,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: RADII.card,
-              textAlign: 'center',
-              boxShadow: SHADOWS.card,
+              display: 'grid',
+              gridTemplateColumns: '1fr auto auto',
+              columnGap: 20,
+              rowGap: 10,
+              alignItems: 'baseline',
             }}
           >
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 800,
-                color: COLORS.ink,
-                letterSpacing: -0.4,
-                lineHeight: 1,
-              }}
-            >
-              {totalInStock}
-            </div>
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                color: COLORS.textMuted,
-                letterSpacing: 0.4,
-                textTransform: 'uppercase',
-                marginTop: 6,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              Listings
-            </div>
-          </div>
-          {/* Tires in stock — the new headline number. Sum of physical
-              tires (not listings) across all available-status rows.
-              Allows label wrap to two lines because "TIRES IN STOCK"
-              is wider than 72px at 10px font. */}
-          <div
-            style={{
-              padding: '10px 6px',
-              background: COLORS.redSoftBg,
-              border: `1px solid ${COLORS.red}`,
-              borderRadius: RADII.card,
-              textAlign: 'center',
-              boxShadow: SHADOWS.card,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 800,
-                color: COLORS.red,
-                letterSpacing: -0.4,
-                lineHeight: 1,
-              }}
-            >
-              {tiresInStockQty}
-            </div>
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                color: COLORS.red,
-                letterSpacing: 0.4,
-                textTransform: 'uppercase',
-                marginTop: 6,
-                // Two-line wrap; "TIRES IN STOCK" is wider than 72px.
-                whiteSpace: 'normal',
-                lineHeight: 1.15,
-              }}
-            >
-              Tires in stock
-            </div>
+            {/* Header row — blank shop-name cell + two column labels */}
+            <span />
+            <span style={tableHeaderCellStyle}>Listings</span>
+            <span style={tableHeaderCellStyle}>Tires</span>
+            {/* Shop rows — Mission / Aldergrove / Lethbridge + Other if non-zero */}
+            {allMetrics.map((m) => (
+              <Fragment key={m.shop}>
+                <span style={tableShopCellStyle}>{m.shop}</span>
+                <span style={tableNumberCellStyle}>{m.listings}</span>
+                <span style={tableNumberCellStyle}>{m.tires}</span>
+              </Fragment>
+            ))}
+            {/* Total row — borderTop on each of the three cells forms a continuous divider */}
+            <span style={tableTotalLabelStyle}>Total</span>
+            <span style={tableTotalNumberStyle}>{totalListings}</span>
+            <span style={tableTotalNumberStyle}>{totalTires}</span>
           </div>
         </div>
       </section>
