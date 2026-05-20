@@ -210,19 +210,35 @@ Schema is **not** committed as a `.sql` file in this repo — it lives in Supaba
 - Different copy when the user is unassigned vs. assigned to a known shop
 - Teaches Claude to: interpret tire-shop speech ("two thirty-five fifty-five seventeen" → "235/55R17"), handle multi-attachment messages, confirm destructive actions
 
-### Tools (six)
+### Tools (seven)
 
 | Tool | What it does | Confirmation? |
 |---|---|---|
 | `search_tires` | Query inventory by brand/model/size/season/condition/shop/location/tire_number/free-text. Returns rows including friendly `tire-N` IDs. | No |
-| `add_tire` | Insert a new tire. Most fields optional. Accepts `photo_url` (single) or `photo_urls` (array). Returns a list of fields it inferred plus what's still missing. | No (data added directly) |
+| `add_tire` | Insert a new tire. Most fields optional. Accepts `photo_url` (single) or `photo_urls` (array). Now also gates on the catalog matcher — see "Tire knowledge base" below. | No for high-confidence brand+model; **yes** for medium-confidence or unknown (the matcher returns a status the assistant uses to drive a separate confirmation turn) |
 | `update_tire` | Edit existing tire by uuid OR friendly ID. Accepts any subset of fields. | **Yes** — for status changes and location changes; the system prompt enforces the two-turn confirmation pattern |
 | `delete_tire` | Remove a tire (and cascades to its photos). | **Yes** — separate-turn confirmation required |
 | `attach_photo_to_tire` | Append photos to an existing tire's gallery. | **Yes** — confirmation required |
 | `report_bug` | File a bug report when the user says "this is broken" / "log a bug". Inserts into `bug_reports`. | No |
+| `learn_tire_term` | Teach the catalog a new brand or model after the user spells it. Idempotent. | The user has already confirmed the spelling in conversation by the time the assistant calls this. |
 
 ### Confirmation pattern (server-enforced via prompt)
 The system prompt is strict about destructive actions — Claude must describe the proposed action, ask for a clear "yes" in a SEPARATE turn, and only call the tool with `confirm: true` AFTER. This is the same pattern used in the [CRM's AskBox](c:\Users\chedd\crm-app\lib\agents\assistant.js).
+
+### Tire knowledge base (catalog matcher)
+
+Added 2026-05-20 to stop the AI from saving Whisper garbles like "Mishelin" as actual brand names. See `docs/plans/tire-knowledge.md` for the plan, `lib/tire-catalog.json` for the data (39 brands, 215 models), `lib/tire-catalog.ts` for the matcher.
+
+How it works:
+- `runAddTire` calls `matchBrand(input.brand)` and (if brand resolves) `matchModel(brand, input.model)` before the Supabase insert.
+- Sørensen-Dice trigram similarity scores the input against canonical names AND aliases.
+- **High** confidence (>0.85 with a >0.15 gap to runner-up) → canonical name substitutes silently in the insert; the assistant must call out the substitution in its reply so the user can flag wrong corrections (rule 16a).
+- **Medium** confidence → tool returns `needs_brand_confirmation` / `needs_model_confirmation` with up to 3 alternates; the assistant asks the user in a separate turn, then retries `add_tire` with `confirmed_brand: true` / `confirmed_model: true`.
+- **Unknown** → tool returns `unknown_brand` / `unknown_model`; the assistant asks the user to spell, then calls `learn_tire_term` to persist the new term to `lib/tire-catalog.json`, then retries `add_tire` with the confirmed flags.
+
+The catalog grows in dev sessions (local file write) and gets committed to git like any other source change. Vercel's runtime FS is read-only, so write attempts there are silently no-op'd — production catalog growth would need a Supabase-backed version, which is deferred (separate future sprint).
+
+System prompt rule 16 documents the full flow for the assistant.
 
 ---
 

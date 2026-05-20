@@ -4,6 +4,12 @@ import { ActivitySource, insertActivityLog } from '../../../lib/activity';
 import { parseSpreadsheet } from '../../../lib/parseSpreadsheet';
 import { TIRE_LOCATIONS, canonicalizeLocation } from '../../../lib/locations';
 import { assertWithinBudget, logUsage, type AnthropicUsage } from '../../../lib/anthropic';
+import {
+  matchBrand,
+  matchModel,
+  addBrandToCatalog,
+  addModelToCatalog,
+} from '../../../lib/tire-catalog';
 
 export const runtime = 'nodejs';
 
@@ -104,7 +110,12 @@ ${shopRule}
    c. ONLY after a clear yes in a SEPARATE turn may you call update_tire with the location field.
    d. NEVER call update_tire to change location in the same turn you propose the change.
    e. When ADDING a new tire (rule 3), no separate confirmation is needed for location — just save it with the rest of the tire fields. This rule only governs CHANGING the location of an existing tire.
-15. SEARCHING BY LOCATION. When the user asks "what's in the warehouse" / "show me yard tires" / "anything in container A", call search_tires with the \`location\` filter set to the user's location phrase. The filter is a partial case-insensitive match, so a preset name is fine even when staff used a custom variation.`;
+15. SEARCHING BY LOCATION. When the user asks "what's in the warehouse" / "show me yard tires" / "anything in container A", call search_tires with the \`location\` filter set to the user's location phrase. The filter is a partial case-insensitive match, so a preset name is fine even when staff used a custom variation.
+16. TIRE BRAND/MODEL CATALOG MATCHING. The server keeps a curated catalog of common tire brands and their model lines, with aliases for phonetic misspeakings (e.g., "Mishelin" → Michelin), shortenings (e.g., "PS4S" → Pilot Sport 4S, "BFG" → BFGoodrich), and Whisper-induced garbles (e.g., "Pilot Sport Force" → Pilot Sport 4S). When you call add_tire with a brand and/or model, the server checks them against the catalog before inserting. The tool response tells you what happened:
+   a. NORMAL INSERT (no status field): the brand/model matched the catalog cleanly. The tire is saved. WHEN THE CANONICAL SPELLING DIFFERS FROM WHAT THE USER SAID — even slightly — always call out the substitution explicitly in your reply so the user has a chance to catch a wrong correction. Example: user says "Mishelin Pilot Spore four S", you save as "Michelin Pilot Sport 4S", reply: "I saved that as Michelin Pilot Sport 4S — let me know if you meant something different." For exact matches where no substitution happened, just confirm normally without flagging.
+   b. \`status: "needs_brand_confirmation"\` (or \`"needs_model_confirmation"\`): the matcher found close candidates but isn't sure. The response includes the user's original string and up to 3 candidates with similarity scores. Ask the user briefly which they meant — e.g., "Did you mean Bridgestone? Or Continental?" — and wait for the answer in a SEPARATE turn. Then retry add_tire with the chosen canonical name AND \`confirmed_brand: true\` (or \`confirmed_model: true\`). Don't include both fields if only one needed confirming.
+   c. \`status: "unknown_brand"\` (or \`"unknown_model"\`): no candidate matched. Ask the user to spell or confirm the term (e.g., "I don't have that brand in my catalog — can you spell it for me?"). ONLY after they answer in a SEPARATE turn, call \`learn_tire_term({ kind: "brand"|"model", name: "...", brand: "..." for kind=model })\` to teach the catalog. Then retry add_tire with \`confirmed_brand: true\` and/or \`confirmed_model: true\`.
+   The order is brand first (must resolve before the model can be looked up), then model. If both are unknown, learn the brand first, then learn the model under it. ALWAYS pass \`confirmed_brand: true\` and/or \`confirmed_model: true\` on the retry — without those flags, the matcher will run again and you'll loop on the same prompt. Don't pre-emptively call learn_tire_term for brands or models you suspect are missing — only after the matcher actually returns unknown_brand or unknown_model and the user confirms the spelling.`;
 }
 
 const TOOLS = [
@@ -152,6 +163,14 @@ const TOOLS = [
           type: 'array',
           items: { type: 'string' },
           description: 'Multiple photo URLs when several images were uploaded for the SAME new tire. Include EVERY URL from the system notes in this message. All listed photos are attached to the new tire.',
+        },
+        confirmed_brand: {
+          type: 'boolean',
+          description: 'Set to true when retrying add_tire after the user has confirmed the brand spelling (either accepted a medium-confidence candidate or spelled out an unknown brand which was then learned via learn_tire_term). Bypasses the catalog matcher for brand.',
+        },
+        confirmed_model: {
+          type: 'boolean',
+          description: 'Same as confirmed_brand but for the model name.',
         },
       },
     },
@@ -219,6 +238,20 @@ const TOOLS = [
         description: { type: 'string', description: 'The bug summary in the user\'s own words (or close to it).' },
       },
       required: ['description'],
+    },
+  },
+  {
+    name: 'learn_tire_term',
+    description:
+      'Teach the catalog a new brand or model that the user has just confirmed by spelling it. Use ONLY after the user has clearly spelled or confirmed the term in the conversation. After learning, retry add_tire with confirmed_brand and/or confirmed_model set to true. Idempotent: calling with an already-known name is a no-op.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', description: '"brand" or "model"' },
+        name: { type: 'string', description: 'The exact canonical spelling the user just confirmed.' },
+        brand: { type: 'string', description: 'When kind="model", the brand the model belongs to. Required for kind="model".' },
+      },
+      required: ['kind', 'name'],
     },
   },
 ];
@@ -357,6 +390,41 @@ async function runAddTire(
     if (canon) row.location = canon;
   }
   const photoUrls = collectPhotoUrls(input);
+
+  // Catalog gate: resolve brand and model against the fuzzy-match catalog
+  // before inserting. High-confidence matches substitute silently; medium
+  // and unknown statuses kick the conversation back to the user so the
+  // assistant can confirm or teach the term. The retry path bypasses the
+  // matcher via confirmed_brand / confirmed_model.
+  if (typeof input.brand === 'string' && input.brand.trim() && !input.confirmed_brand) {
+    const r = await matchBrand(input.brand);
+    if (r.status === 'high') {
+      row.brand = r.match;
+    } else if (r.status === 'medium') {
+      return {
+        status: 'needs_brand_confirmation',
+        original: r.original,
+        candidates: r.alternates,
+      };
+    } else {
+      return { status: 'unknown_brand', original: r.original };
+    }
+  }
+  if (typeof input.model === 'string' && input.model.trim() && row.brand && !input.confirmed_model) {
+    const r = await matchModel(row.brand as string, input.model);
+    if (r.status === 'high') {
+      row.model = r.match;
+    } else if (r.status === 'medium') {
+      return {
+        status: 'needs_model_confirmation',
+        brand: row.brand,
+        original: r.original,
+        candidates: r.alternates,
+      };
+    } else {
+      return { status: 'unknown_model', brand: row.brand, original: r.original };
+    }
+  }
 
   const missing = RECOMMENDED_FIELDS.filter((f) => row[f] === undefined);
   const { data, error } = await supabase.from('tires').insert(row).select().single();
@@ -497,6 +565,33 @@ async function runAttachPhotoToTire(
   return { attached, photos_attached: attached.length, tire, failed };
 }
 
+async function runLearnTireTerm(input: ToolInput) {
+  const kind = typeof input.kind === 'string' ? input.kind.toLowerCase() : '';
+  const name = typeof input.name === 'string' ? input.name.trim() : '';
+  if (!name) return { error: 'name is required' };
+  if (kind === 'brand') {
+    const r = await addBrandToCatalog(name);
+    return { learned: 'brand', canonical: r.canonical, already_existed: !r.added };
+  }
+  if (kind === 'model') {
+    const brand = typeof input.brand === 'string' ? input.brand.trim() : '';
+    if (!brand) return { error: 'brand is required when kind="model"' };
+    const r = await addModelToCatalog(brand, name);
+    if (r.brandCanonical === null) {
+      return {
+        error: `cannot learn model "${name}" — brand "${brand}" is not in the catalog. Call learn_tire_term({ kind: "brand", name: "${brand}" }) first.`,
+      };
+    }
+    return {
+      learned: 'model',
+      canonical: r.canonical,
+      brand: r.brandCanonical,
+      already_existed: !r.added,
+    };
+  }
+  return { error: 'kind must be "brand" or "model"' };
+}
+
 async function runReportBug(
   input: ToolInput,
   currentShop: string,
@@ -535,6 +630,7 @@ async function runTool(
     if (name === 'delete_tire') return await runDeleteTire(input, userEmail, source);
     if (name === 'attach_photo_to_tire') return await runAttachPhotoToTire(input, userEmail, source);
     if (name === 'report_bug') return await runReportBug(input, currentShop, userEmail);
+    if (name === 'learn_tire_term') return await runLearnTireTerm(input);
     return { error: `unknown tool: ${name}` };
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : String(e) };

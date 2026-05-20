@@ -1,0 +1,3546 @@
+{
+  "version": "0.1",
+  "generated_at": "2026-05-20",
+  "notes": "Seed catalog for fuzzy-matching brand and model names from voice transcription. Aliases include phonetic misspeakings, common shortenings, and Whisper-induced garbles. season values: summer | winter | all-season | all-weather | all-terrain | mud-terrain | performance | touring. Grows via the chat agent's learn_tire_term tool — runtime additions get committed to git like any other change.",
+  "brands": [
+    {
+      "name": "Michelin",
+      "aliases": [
+        "Michellin",
+        "Mishelin",
+        "Mick-uh-lin",
+        "Michlen",
+        "Mickelin"
+      ],
+      "models": [
+        {
+          "name": "Pilot Sport 4S",
+          "aliases": [
+            "PS4S",
+            "Pilot Sport Force",
+            "Pilot Sport Four S",
+            "Pilot Sport 4-S"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "245/40R18",
+            "255/35R19",
+            "265/35R20",
+            "275/35R19",
+            "295/30R20"
+          ]
+        },
+        {
+          "name": "Pilot Sport 5",
+          "aliases": [
+            "PS5",
+            "Pilot Sport Five"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "205/45R17",
+            "225/45R18",
+            "245/45R18",
+            "255/40R19",
+            "275/35R19"
+          ]
+        },
+        {
+          "name": "Pilot Sport All Season 4",
+          "aliases": [
+            "PSAS4",
+            "Pilot Sport AS 4",
+            "Pilot Sport All-Season Four"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/40R19",
+            "275/40R19",
+            "295/35R20"
+          ]
+        },
+        {
+          "name": "CrossClimate 2",
+          "aliases": [
+            "Cross Climate 2",
+            "Crossclimate Two",
+            "Cross Climate II"
+          ],
+          "season": "all-weather",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/45R17",
+            "225/50R17",
+            "235/55R17"
+          ]
+        },
+        {
+          "name": "Defender 2",
+          "aliases": [
+            "Defender II",
+            "Defender Two"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/65R17",
+            "235/60R17",
+            "235/65R18"
+          ]
+        },
+        {
+          "name": "Defender LTX M/S",
+          "aliases": [
+            "Defender LTX",
+            "Defender LTX MS",
+            "LTX MS"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "245/65R17",
+            "265/60R18",
+            "275/55R20",
+            "275/65R18",
+            "P265/70R17"
+          ]
+        },
+        {
+          "name": "Latitude Tour HP",
+          "aliases": [
+            "Latitude Tour"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/55R19",
+            "235/60R18",
+            "255/55R18",
+            "265/45R20",
+            "275/40R20"
+          ]
+        },
+        {
+          "name": "X-Ice Snow",
+          "aliases": [
+            "X Ice Snow",
+            "XIce Snow",
+            "Exit Snow",
+            "Xice"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/65R17",
+            "235/60R18",
+            "255/55R19"
+          ]
+        },
+        {
+          "name": "LTX A/T 2",
+          "aliases": [
+            "LTX AT 2",
+            "LTX A T 2",
+            "LTX A T Two"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "265/70R17",
+            "275/65R18",
+            "265/65R18",
+            "LT265/75R16",
+            "LT285/75R16"
+          ]
+        },
+        {
+          "name": "Pilot Alpin PA4",
+          "aliases": [
+            "Pilot Alpin"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "225/45R18",
+            "245/40R19",
+            "255/40R19",
+            "275/35R20",
+            "295/30R20"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Bridgestone",
+      "aliases": [
+        "Bridgestown",
+        "Bridestone",
+        "Bridge Stone",
+        "Bridgstone"
+      ],
+      "models": [
+        {
+          "name": "Potenza Sport",
+          "aliases": [
+            "Potenza"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "245/45R19",
+            "255/40R19",
+            "275/35R20"
+          ]
+        },
+        {
+          "name": "Potenza RE980AS",
+          "aliases": [
+            "RE980AS",
+            "Potenza 980",
+            "Potenza Ray 980"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "225/45R17",
+            "235/45R18",
+            "245/40R19",
+            "255/40R19",
+            "275/35R19"
+          ]
+        },
+        {
+          "name": "Turanza QuietTrack",
+          "aliases": [
+            "Turanza Quiet Track",
+            "Turanza Quiettrack"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/50R17",
+            "235/45R18"
+          ]
+        },
+        {
+          "name": "Turanza EL400",
+          "aliases": [
+            "EL400",
+            "Turanza Ell 400"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "205/55R16",
+            "215/60R16",
+            "225/55R17",
+            "235/55R18",
+            "245/45R18"
+          ]
+        },
+        {
+          "name": "Ecopia EP422 Plus",
+          "aliases": [
+            "EP422",
+            "EP 422 Plus",
+            "Ecopia EP422+"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "185/65R15",
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/60R16"
+          ]
+        },
+        {
+          "name": "Dueler H/L Alenza Plus",
+          "aliases": [
+            "Dueler HL Alenza",
+            "Dueler Alenza",
+            "Alenza Plus"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/65R17",
+            "245/60R18",
+            "265/60R18",
+            "275/55R20",
+            "275/60R20"
+          ]
+        },
+        {
+          "name": "Dueler A/T Revo 3",
+          "aliases": [
+            "Dueler AT Revo 3",
+            "Revo 3",
+            "Dueler Revo Three"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/65R18",
+            "LT265/70R17",
+            "LT275/65R20"
+          ]
+        },
+        {
+          "name": "Blizzak WS90",
+          "aliases": [
+            "Blizzak WS 90",
+            "Bliz Zach WS90",
+            "Blizzak Ninety"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/65R17",
+            "235/55R17"
+          ]
+        },
+        {
+          "name": "Blizzak DM-V2",
+          "aliases": [
+            "Blizzak DM V2",
+            "Blizzak DMV2",
+            "Blizzak D M V 2"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "225/65R17",
+            "235/60R18",
+            "245/60R18",
+            "265/65R17",
+            "265/70R17"
+          ]
+        },
+        {
+          "name": "Weatherpeak",
+          "aliases": [
+            "Weather Peak"
+          ],
+          "season": "all-weather",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/50R18",
+            "225/65R17",
+            "235/55R18"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Continental",
+      "aliases": [
+        "Conti",
+        "Kontinental",
+        "Cont"
+      ],
+      "models": [
+        {
+          "name": "ExtremeContact Sport 02",
+          "aliases": [
+            "Extreme Contact Sport 02",
+            "EC Sport 02",
+            "ExtremeContact Sport"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/35R19",
+            "275/35R19",
+            "295/30R20"
+          ]
+        },
+        {
+          "name": "ExtremeContact DWS06 Plus",
+          "aliases": [
+            "DWS06",
+            "DWS 06 Plus",
+            "Extreme Contact DWS 06"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "225/45R17",
+            "245/45R18",
+            "255/40R19",
+            "275/40R19",
+            "295/35R20"
+          ]
+        },
+        {
+          "name": "PureContact LS",
+          "aliases": [
+            "Pure Contact LS",
+            "Pure Contact"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/50R17",
+            "235/45R18"
+          ]
+        },
+        {
+          "name": "TrueContact Tour",
+          "aliases": [
+            "True Contact Tour",
+            "Truecontact"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "185/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/55R17",
+            "235/55R18"
+          ]
+        },
+        {
+          "name": "TerrainContact A/T",
+          "aliases": [
+            "Terrain Contact AT",
+            "TerrainContact AT",
+            "Terrain Contact A T"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/65R18",
+            "275/55R20",
+            "LT275/70R18"
+          ]
+        },
+        {
+          "name": "TerrainContact H/T",
+          "aliases": [
+            "Terrain Contact HT",
+            "Terrain Contact H T"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/65R17",
+            "245/60R18",
+            "265/60R18",
+            "275/55R20",
+            "275/60R20"
+          ]
+        },
+        {
+          "name": "VikingContact 7",
+          "aliases": [
+            "Viking Contact 7",
+            "Viking Contact Seven"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/45R18",
+            "235/55R18",
+            "255/45R20"
+          ]
+        },
+        {
+          "name": "WinterContact SI",
+          "aliases": [
+            "Winter Contact SI",
+            "Winter Contact"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "205/55R16",
+            "215/60R16",
+            "225/65R17",
+            "235/65R17",
+            "245/50R18"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Goodyear",
+      "aliases": [
+        "Good Year",
+        "Good-Year"
+      ],
+      "models": [
+        {
+          "name": "Eagle F1 SuperSport",
+          "aliases": [
+            "Eagle F1 Super Sport",
+            "F1 SuperSport",
+            "Eagle F1 SS"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/35R19",
+            "275/35R19",
+            "305/30R20"
+          ]
+        },
+        {
+          "name": "Eagle F1 Asymmetric 6",
+          "aliases": [
+            "Asymmetric 6",
+            "F1 Asym 6",
+            "Asymetric 6"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/40R18",
+            "235/45R18",
+            "245/40R18",
+            "255/35R19",
+            "275/35R20"
+          ]
+        },
+        {
+          "name": "Eagle Sport All Season",
+          "aliases": [
+            "Eagle Sport AS",
+            "Eagle Sport"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "225/45R17",
+            "235/55R17",
+            "245/45R18",
+            "255/40R19",
+            "275/40R19"
+          ]
+        },
+        {
+          "name": "Assurance WeatherReady",
+          "aliases": [
+            "Assurance Weather Ready",
+            "Weather Ready"
+          ],
+          "season": "all-weather",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/65R17",
+            "235/55R18",
+            "245/60R18"
+          ]
+        },
+        {
+          "name": "Assurance ComfortDrive",
+          "aliases": [
+            "Assurance Comfort Drive",
+            "Comfort Drive"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/50R17",
+            "235/45R18"
+          ]
+        },
+        {
+          "name": "Wrangler All-Terrain Adventure",
+          "aliases": [
+            "Wrangler AT Adventure",
+            "Wrangler ATA",
+            "Wrangler All Terrain Adventure"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/65R18",
+            "LT265/70R17",
+            "LT285/75R16"
+          ]
+        },
+        {
+          "name": "Wrangler Workhorse HT",
+          "aliases": [
+            "Workhorse HT",
+            "Wrangler Work Horse HT"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/75R15",
+            "245/75R16",
+            "265/70R17",
+            "275/65R18",
+            "LT275/65R20"
+          ]
+        },
+        {
+          "name": "UltraGrip Performance",
+          "aliases": [
+            "Ultra Grip Performance",
+            "Ultragrip Performance"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/45R18",
+            "245/40R19",
+            "275/40R20"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Pirelli",
+      "aliases": [
+        "Perrelli",
+        "Puh-relli",
+        "Pirreli",
+        "Pirellie",
+        "Puh Rel Lee"
+      ],
+      "models": [
+        {
+          "name": "P Zero",
+          "aliases": [
+            "P-Zero",
+            "PZero",
+            "Pzero"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/40R18",
+            "245/40R18",
+            "255/35R19",
+            "275/35R19",
+            "305/30R20"
+          ]
+        },
+        {
+          "name": "P Zero PZ4",
+          "aliases": [
+            "PZ4",
+            "P-Zero PZ4",
+            "P Zero P Z 4"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "245/40R18",
+            "255/40R20",
+            "275/35R19",
+            "275/40R20",
+            "295/35R21"
+          ]
+        },
+        {
+          "name": "Cinturato P7",
+          "aliases": [
+            "Cinturato P-7",
+            "Sin Tu Rato P7"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/45R17",
+            "225/50R17",
+            "245/45R18"
+          ]
+        },
+        {
+          "name": "Cinturato All Season Plus",
+          "aliases": [
+            "Cinturato AS Plus",
+            "Cinturato All Season+"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/50R17",
+            "235/45R18"
+          ]
+        },
+        {
+          "name": "Scorpion Verde All Season",
+          "aliases": [
+            "Scorpion Verde AS",
+            "Scorpion Verde"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/60R18",
+            "245/55R19",
+            "265/45R20",
+            "275/45R20",
+            "285/40R21"
+          ]
+        },
+        {
+          "name": "Scorpion All Terrain Plus",
+          "aliases": [
+            "Scorpion ATR Plus",
+            "Scorpion AT Plus"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "255/70R16",
+            "265/70R17",
+            "265/65R18",
+            "275/55R20",
+            "LT285/65R20"
+          ]
+        },
+        {
+          "name": "Winter Sottozero 3",
+          "aliases": [
+            "Sottozero 3",
+            "Sotto Zero 3",
+            "Winter Sotto Zero Three"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "225/45R18",
+            "245/40R19",
+            "255/40R19",
+            "275/40R20",
+            "295/30R20"
+          ]
+        },
+        {
+          "name": "Scorpion Winter",
+          "aliases": [
+            "Scorpion Winter SUV"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "235/55R19",
+            "255/55R18",
+            "265/45R20",
+            "275/45R20",
+            "285/40R21"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Hankook",
+      "aliases": [
+        "Han Kook",
+        "Hancook",
+        "Hankuk"
+      ],
+      "models": [
+        {
+          "name": "Ventus V12 Evo2",
+          "aliases": [
+            "V12 Evo 2",
+            "Ventus V 12 Evo 2",
+            "Ventus V12 Evo Two"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/35R19",
+            "275/35R19",
+            "295/30R20"
+          ]
+        },
+        {
+          "name": "Ventus S1 Noble2",
+          "aliases": [
+            "S1 Noble 2",
+            "Ventus S 1 Noble 2"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "225/45R17",
+            "235/45R18",
+            "245/40R19",
+            "255/35R20",
+            "275/30R20"
+          ]
+        },
+        {
+          "name": "Kinergy PT",
+          "aliases": [
+            "Kinergy P T"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/55R17",
+            "235/55R18"
+          ]
+        },
+        {
+          "name": "Kinergy GT",
+          "aliases": [
+            "Kinergy G T"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/50R17",
+            "235/45R18"
+          ]
+        },
+        {
+          "name": "Dynapro AT2",
+          "aliases": [
+            "Dynapro A T 2",
+            "Dyna Pro AT2",
+            "Dynapro AT Two"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/65R18",
+            "LT265/70R17",
+            "LT285/75R16"
+          ]
+        },
+        {
+          "name": "Dynapro HT",
+          "aliases": [
+            "Dynapro H T",
+            "Dyna Pro HT"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/65R17",
+            "245/60R18",
+            "265/60R18",
+            "275/55R20",
+            "275/60R20"
+          ]
+        },
+        {
+          "name": "Winter i*cept evo3",
+          "aliases": [
+            "i*cept evo3",
+            "iCept evo 3",
+            "Winter Icept Evo Three"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/45R18",
+            "235/45R18",
+            "245/40R19"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Toyo",
+      "aliases": [
+        "Toy O",
+        "Toy-O"
+      ],
+      "models": [
+        {
+          "name": "Proxes Sport",
+          "aliases": [
+            "Proxes"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/35R19",
+            "275/35R19",
+            "295/30R20"
+          ]
+        },
+        {
+          "name": "Proxes 4 Plus",
+          "aliases": [
+            "Proxes Four Plus",
+            "Proxes 4+"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "205/55R16",
+            "215/45R17",
+            "225/45R17",
+            "245/40R18",
+            "255/35R19"
+          ]
+        },
+        {
+          "name": "Proxes A/T III",
+          "aliases": [
+            "Proxes AT3",
+            "Proxes AT III",
+            "Proxes A T Three"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/75R16"
+          ]
+        },
+        {
+          "name": "Open Country A/T III",
+          "aliases": [
+            "Open Country AT3",
+            "Open Country AT III",
+            "Open Country A T Three"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "265/70R17",
+            "275/65R18",
+            "LT265/70R17",
+            "LT275/65R20",
+            "LT285/75R16"
+          ]
+        },
+        {
+          "name": "Open Country M/T",
+          "aliases": [
+            "Open Country MT",
+            "Open Country M T"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/75R16",
+            "LT285/75R16",
+            "LT305/70R16",
+            "LT315/75R16",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Open Country H/T II",
+          "aliases": [
+            "Open Country HT2",
+            "Open Country HT II"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/65R17",
+            "245/60R18",
+            "265/60R18",
+            "275/55R20",
+            "275/60R20"
+          ]
+        },
+        {
+          "name": "Observe GSi-6",
+          "aliases": [
+            "Observe GSi 6",
+            "Observe G S i 6"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/65R17",
+            "235/55R18",
+            "255/55R18"
+          ]
+        },
+        {
+          "name": "Celsius II",
+          "aliases": [
+            "Celsius 2",
+            "Celsius Two"
+          ],
+          "season": "all-weather",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/65R17",
+            "235/55R18",
+            "245/45R19"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Yokohama",
+      "aliases": [
+        "Yoko",
+        "Yokahama",
+        "Yoko Hama"
+      ],
+      "models": [
+        {
+          "name": "Advan Sport V107",
+          "aliases": [
+            "Advan Sport",
+            "Advan V107"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/35R19",
+            "275/35R19",
+            "295/30R20"
+          ]
+        },
+        {
+          "name": "Advan A052",
+          "aliases": [
+            "A052",
+            "Advan A 052"
+          ],
+          "season": "performance",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/35R18",
+            "265/35R18",
+            "275/35R18"
+          ]
+        },
+        {
+          "name": "Avid Ascend GT",
+          "aliases": [
+            "Avid Ascend",
+            "Ascend GT"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/50R17",
+            "235/45R18"
+          ]
+        },
+        {
+          "name": "Geolandar A/T G015",
+          "aliases": [
+            "Geolandar AT G015",
+            "Geolandar A T G 015"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/75R16"
+          ]
+        },
+        {
+          "name": "Geolandar M/T G003",
+          "aliases": [
+            "Geolandar MT G003",
+            "Geolandar M T G 003"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/75R16",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Geolandar X-CV",
+          "aliases": [
+            "Geolandar XCV",
+            "Geolandar X C V"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/55R19",
+            "255/55R18",
+            "265/45R20",
+            "275/45R20",
+            "285/45R22"
+          ]
+        },
+        {
+          "name": "iceGUARD G075",
+          "aliases": [
+            "IceGuard G075",
+            "Ice Guard G075"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "225/65R17",
+            "235/55R18",
+            "245/60R18",
+            "255/55R18",
+            "265/65R17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cooper",
+      "aliases": [],
+      "models": [
+        {
+          "name": "Discoverer AT3 4S",
+          "aliases": [
+            "Discoverer AT3",
+            "Discoverer A T 3 4 S"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "275/65R18",
+            "275/60R20"
+          ]
+        },
+        {
+          "name": "Discoverer STT Pro",
+          "aliases": [
+            "STT Pro",
+            "Discoverer S T T Pro"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Endeavor",
+          "aliases": [],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/55R17",
+            "235/45R18"
+          ]
+        },
+        {
+          "name": "Endeavor Plus",
+          "aliases": [
+            "Endeavor+"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/50R17",
+            "235/45R18",
+            "245/45R18"
+          ]
+        },
+        {
+          "name": "Evolution Winter",
+          "aliases": [],
+          "season": "winter",
+          "common_sizes": [
+            "205/55R16",
+            "215/60R16",
+            "225/65R17",
+            "235/65R17",
+            "245/60R18"
+          ]
+        },
+        {
+          "name": "Zeon RS3-G1",
+          "aliases": [
+            "Zeon RS3 G1",
+            "RS3-G1"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/40R19",
+            "275/40R19",
+            "295/35R20"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Falken",
+      "aliases": [
+        "Folken",
+        "Falkin"
+      ],
+      "models": [
+        {
+          "name": "Azenis FK510",
+          "aliases": [
+            "FK510",
+            "Azenis F K 510"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/35R19",
+            "275/35R19",
+            "295/30R20"
+          ]
+        },
+        {
+          "name": "Azenis RT660",
+          "aliases": [
+            "RT660",
+            "Azenis R T 660"
+          ],
+          "season": "performance",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/40R17",
+            "275/35R18",
+            "295/30R18"
+          ]
+        },
+        {
+          "name": "Sincera SN250 A/S",
+          "aliases": [
+            "Sincera SN250",
+            "Sincera AS",
+            "SN250"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "185/65R15",
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/60R17"
+          ]
+        },
+        {
+          "name": "Ziex CT60 A/S",
+          "aliases": [
+            "Ziex CT60",
+            "Ziex C T 60"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "225/55R18",
+            "235/55R18",
+            "235/60R18",
+            "245/55R19",
+            "255/55R20"
+          ]
+        },
+        {
+          "name": "Wildpeak A/T3W",
+          "aliases": [
+            "Wildpeak AT3W",
+            "Wildpeak A T 3 W"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        },
+        {
+          "name": "Wildpeak M/T",
+          "aliases": [
+            "Wildpeak MT",
+            "Wildpeak M T"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Espia EPZ II",
+          "aliases": [
+            "Espia EPZ 2",
+            "Espia E P Z Two"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/45R18",
+            "235/55R18"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "BFGoodrich",
+      "aliases": [
+        "BFG",
+        "B F G",
+        "BF Goodrich",
+        "Bee Eff Gee"
+      ],
+      "models": [
+        {
+          "name": "All-Terrain T/A KO2",
+          "aliases": [
+            "AT KO2",
+            "KO2",
+            "All Terrain T A K O 2",
+            "All Terrain KO Two"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "265/70R17",
+            "275/65R18",
+            "LT265/70R17",
+            "LT275/65R20",
+            "LT285/75R16"
+          ]
+        },
+        {
+          "name": "All-Terrain T/A KO3",
+          "aliases": [
+            "AT KO3",
+            "KO3",
+            "All Terrain KO Three"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "265/70R17",
+            "275/65R18",
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT285/75R16"
+          ]
+        },
+        {
+          "name": "Mud-Terrain T/A KM3",
+          "aliases": [
+            "MT KM3",
+            "KM3",
+            "Mud Terrain KM3",
+            "Mud Terrain K M Three"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R17",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "g-Force Sport COMP-2",
+          "aliases": [
+            "g Force Sport Comp 2",
+            "G-Force Sport Comp Two"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/40R19",
+            "275/40R19",
+            "295/35R20"
+          ]
+        },
+        {
+          "name": "g-Force Comp-2 A/S Plus",
+          "aliases": [
+            "g-Force Comp-2 AS+",
+            "g Force Comp 2 A S Plus"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/40R19",
+            "275/40R19",
+            "295/35R20"
+          ]
+        },
+        {
+          "name": "Advantage Control",
+          "aliases": [],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/50R17",
+            "235/55R18"
+          ]
+        },
+        {
+          "name": "Winter T/A KSI",
+          "aliases": [
+            "Winter T A KSI",
+            "Winter KSI"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/45R18",
+            "235/55R17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Firestone",
+      "aliases": [
+        "Fire Stone",
+        "Firstone"
+      ],
+      "models": [
+        {
+          "name": "Firehawk Indy 500",
+          "aliases": [
+            "Indy 500",
+            "Firehawk Indy Five Hundred"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/40R19",
+            "275/35R20",
+            "305/30R20"
+          ]
+        },
+        {
+          "name": "Firehawk AS V2",
+          "aliases": [
+            "Firehawk AS V 2",
+            "Firehawk AS Two"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/45R17",
+            "235/45R18",
+            "245/45R18"
+          ]
+        },
+        {
+          "name": "WeatherGrip",
+          "aliases": [
+            "Weather Grip"
+          ],
+          "season": "all-weather",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/65R17",
+            "235/55R18"
+          ]
+        },
+        {
+          "name": "Destination LE3",
+          "aliases": [
+            "Destination L E 3",
+            "Destination LE Three"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/65R17",
+            "245/60R18",
+            "265/60R18",
+            "275/55R20",
+            "275/60R20"
+          ]
+        },
+        {
+          "name": "Destination A/T2",
+          "aliases": [
+            "Destination AT2",
+            "Destination A T Two"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/65R18",
+            "LT265/70R17",
+            "LT285/75R16"
+          ]
+        },
+        {
+          "name": "Destination M/T2",
+          "aliases": [
+            "Destination MT2",
+            "Destination M T Two"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Winterforce 2",
+          "aliases": [
+            "Winter Force 2",
+            "Winterforce Two"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/65R17",
+            "235/65R17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Dunlop",
+      "aliases": [
+        "Dun Lop"
+      ],
+      "models": [
+        {
+          "name": "Direzza ZIII",
+          "aliases": [
+            "Direzza Z3",
+            "Direzza Z 3",
+            "Direzza Z Three"
+          ],
+          "season": "performance",
+          "common_sizes": [
+            "205/50R15",
+            "225/45R17",
+            "245/40R18",
+            "255/40R17",
+            "275/35R18"
+          ]
+        },
+        {
+          "name": "Direzza DZ102",
+          "aliases": [
+            "DZ102",
+            "Direzza D Z 102"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "195/55R15",
+            "205/55R16",
+            "215/45R17",
+            "225/45R17",
+            "245/45R17"
+          ]
+        },
+        {
+          "name": "Sport Maxx RT2",
+          "aliases": [
+            "Sport Maxx R T 2",
+            "Sport Maxx Two"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/35R19",
+            "275/30R20",
+            "295/30R20"
+          ]
+        },
+        {
+          "name": "SP Sport 5000",
+          "aliases": [
+            "SP Sport Five Thousand",
+            "S P Sport 5000"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/50R17",
+            "235/45R18"
+          ]
+        },
+        {
+          "name": "Grandtrek AT20",
+          "aliases": [
+            "Grandtrek A T 20",
+            "Grand Trek AT20"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R17",
+            "275/65R18",
+            "LT265/70R17",
+            "LT285/65R18"
+          ]
+        },
+        {
+          "name": "Winter Maxx WM02",
+          "aliases": [
+            "Winter Maxx W M 02",
+            "Winter Maxx 02"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/45R18",
+            "235/45R18"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Nitto",
+      "aliases": [
+        "Knee Toe",
+        "Neeto"
+      ],
+      "models": [
+        {
+          "name": "NT05",
+          "aliases": [
+            "N T 05",
+            "NT Zero Five"
+          ],
+          "season": "performance",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/40R17",
+            "275/35R18",
+            "305/30R19"
+          ]
+        },
+        {
+          "name": "NT01",
+          "aliases": [
+            "N T 01",
+            "NT Zero One"
+          ],
+          "season": "performance",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R17",
+            "255/40R17",
+            "275/35R18",
+            "315/30R18"
+          ]
+        },
+        {
+          "name": "Terra Grappler G2",
+          "aliases": [
+            "Terra Grappler",
+            "Terra Grappler 2"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/65R18",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        },
+        {
+          "name": "Trail Grappler M/T",
+          "aliases": [
+            "Trail Grappler MT",
+            "Trail Grappler M T"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Ridge Grappler",
+          "aliases": [
+            "Ridge Grapler"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Recon Grappler A/T",
+          "aliases": [
+            "Recon Grappler AT",
+            "Recon Grappler A T"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "LT275/70R18",
+            "LT285/70R17",
+            "LT305/65R18",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "NT421Q",
+          "aliases": [
+            "NT 421Q",
+            "NT Four Twenty One Q"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/55R19",
+            "255/55R18",
+            "265/45R20",
+            "275/45R20",
+            "285/45R22"
+          ]
+        },
+        {
+          "name": "Motivo",
+          "aliases": [],
+          "season": "all-season",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/45R17",
+            "235/45R18",
+            "245/45R18"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Kumho",
+      "aliases": [
+        "Koom Ho",
+        "Coomho"
+      ],
+      "models": [
+        {
+          "name": "Ecsta PS31",
+          "aliases": [
+            "PS31",
+            "Ecsta P S 31"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "205/55R16",
+            "215/45R17",
+            "225/45R17",
+            "245/40R18",
+            "255/35R19"
+          ]
+        },
+        {
+          "name": "Ecsta V730",
+          "aliases": [
+            "V730",
+            "Ecsta V 730"
+          ],
+          "season": "performance",
+          "common_sizes": [
+            "205/50R15",
+            "225/45R17",
+            "245/40R17",
+            "255/40R17",
+            "275/35R18"
+          ]
+        },
+        {
+          "name": "Solus TA31",
+          "aliases": [
+            "TA31",
+            "Solus T A 31"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/50R17",
+            "235/45R18"
+          ]
+        },
+        {
+          "name": "Solus TA51A",
+          "aliases": [
+            "TA51A",
+            "Solus TA51",
+            "Solus T A 51 A"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "205/55R16",
+            "215/60R16",
+            "225/55R18",
+            "235/55R18",
+            "245/45R19"
+          ]
+        },
+        {
+          "name": "Crugen HP71",
+          "aliases": [
+            "Crugen H P 71"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/65R17",
+            "245/60R18",
+            "265/60R18",
+            "275/55R20",
+            "275/60R20"
+          ]
+        },
+        {
+          "name": "Road Venture AT51",
+          "aliases": [
+            "AT51",
+            "Road Venture A T 51"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/75R16"
+          ]
+        },
+        {
+          "name": "WinterCraft WP51",
+          "aliases": [
+            "Winter Craft WP51",
+            "Winter Craft W P 51"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/45R18",
+            "245/45R18"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Nexen",
+      "aliases": [
+        "Neck Sen",
+        "Neksen"
+      ],
+      "models": [
+        {
+          "name": "N Fera SU1",
+          "aliases": [
+            "NFera SU1",
+            "N-Fera SU1",
+            "N Fera S U 1"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/35R19",
+            "275/35R19",
+            "295/30R20"
+          ]
+        },
+        {
+          "name": "N Fera RU1",
+          "aliases": [
+            "NFera RU1",
+            "N-Fera RU1",
+            "N Fera R U 1"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/55R18",
+            "245/50R20",
+            "265/45R20",
+            "275/45R20",
+            "285/45R22"
+          ]
+        },
+        {
+          "name": "N5000 Platinum",
+          "aliases": [
+            "N 5000 Platinum",
+            "N5000"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/45R17",
+            "235/45R18",
+            "245/45R18"
+          ]
+        },
+        {
+          "name": "Aria AH7",
+          "aliases": [
+            "AH7",
+            "Aria A H 7"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/55R17",
+            "235/55R18"
+          ]
+        },
+        {
+          "name": "Roadian HTX RH5",
+          "aliases": [
+            "RH5",
+            "Roadian H T X R H 5"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/65R17",
+            "245/60R18",
+            "265/60R18",
+            "275/55R20",
+            "275/60R20"
+          ]
+        },
+        {
+          "name": "Roadian MTX",
+          "aliases": [
+            "Roadian M T X"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT37X12.50R20"
+          ]
+        },
+        {
+          "name": "WinGuard Sport 2",
+          "aliases": [
+            "Winguard Sport 2",
+            "Win Guard Sport Two"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/45R18",
+            "245/40R19",
+            "275/40R19"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "General",
+      "aliases": [
+        "Genral"
+      ],
+      "models": [
+        {
+          "name": "AltiMAX RT45",
+          "aliases": [
+            "AltiMax RT45",
+            "Alti Max R T 45"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "185/65R15",
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/60R17"
+          ]
+        },
+        {
+          "name": "G-Max AS-05",
+          "aliases": [
+            "G Max AS 05",
+            "GMax AS05"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/45R17",
+            "235/45R18",
+            "245/40R19"
+          ]
+        },
+        {
+          "name": "G-Max Justice",
+          "aliases": [
+            "GMax Justice",
+            "G Max Justice"
+          ],
+          "season": "performance",
+          "common_sizes": [
+            "205/50R17",
+            "225/45R17",
+            "245/40R17",
+            "275/35R18",
+            "305/35R20"
+          ]
+        },
+        {
+          "name": "Grabber AT3",
+          "aliases": [
+            "Grabber A T 3",
+            "Grabber AT Three"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        },
+        {
+          "name": "Grabber X3",
+          "aliases": [
+            "Grabber X 3"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Grabber HTS60",
+          "aliases": [
+            "Grabber H T S 60",
+            "Grabber HTS Sixty"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/65R17",
+            "245/60R18",
+            "265/60R18",
+            "275/55R20",
+            "275/60R20"
+          ]
+        },
+        {
+          "name": "AltiMAX Arctic 12",
+          "aliases": [
+            "Altimax Arctic 12",
+            "Alti Max Arctic Twelve"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/65R17",
+            "235/65R17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Mickey Thompson",
+      "aliases": [
+        "Mickey T",
+        "Mick Thompson",
+        "M/T",
+        "MT"
+      ],
+      "models": [
+        {
+          "name": "Baja Boss A/T",
+          "aliases": [
+            "Baja Boss AT",
+            "Baja Boss A T"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "265/70R17",
+            "275/65R18",
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT37X12.50R20"
+          ]
+        },
+        {
+          "name": "Baja Boss M/T",
+          "aliases": [
+            "Baja Boss MT",
+            "Baja Boss M T"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT37X12.50R20"
+          ]
+        },
+        {
+          "name": "Baja MTZP3",
+          "aliases": [
+            "Baja M T Z P 3",
+            "MTZP3"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Deegan 38",
+          "aliases": [
+            "Deegan Thirty Eight"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/55R20",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Sportsman S/T",
+          "aliases": [
+            "Sportsman ST",
+            "Sportsman S T"
+          ],
+          "season": "performance",
+          "common_sizes": [
+            "P235/60R15",
+            "P255/60R15",
+            "P275/60R15",
+            "P295/50R15",
+            "31X18.50LT15"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Maxxis",
+      "aliases": [
+        "Max Sis",
+        "Max-Sis"
+      ],
+      "models": [
+        {
+          "name": "Razr AT",
+          "aliases": [
+            "Razr A T"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        },
+        {
+          "name": "Razr MT",
+          "aliases": [
+            "Razr M T"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Razr HT",
+          "aliases": [
+            "Razr H T"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/65R17",
+            "245/60R18",
+            "265/60R18",
+            "275/55R20",
+            "275/60R20"
+          ]
+        },
+        {
+          "name": "Bighorn 2.0",
+          "aliases": [
+            "Bighorn Two",
+            "Big Horn 2"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT37X12.50R20"
+          ]
+        },
+        {
+          "name": "Victra MA-Z4S",
+          "aliases": [
+            "Victra MAZ4S",
+            "Victra M A Z 4 S"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "205/55R16",
+            "215/45R17",
+            "225/45R17",
+            "245/40R18",
+            "275/35R19"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Achilles",
+      "aliases": [
+        "A Killees"
+      ],
+      "models": [
+        {
+          "name": "ATR Sport 2",
+          "aliases": [
+            "ATR Sport II",
+            "A T R Sport 2"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "205/55R16",
+            "215/45R17",
+            "225/45R17",
+            "245/40R18",
+            "275/35R19"
+          ]
+        },
+        {
+          "name": "868 All Seasons",
+          "aliases": [
+            "868 AS",
+            "Eight Sixty Eight All Seasons"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/55R17",
+            "235/55R18"
+          ]
+        },
+        {
+          "name": "Desert Hawk A/T",
+          "aliases": [
+            "Desert Hawk AT",
+            "Desert Hawk A T"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Mastercraft",
+      "aliases": [
+        "Master Craft"
+      ],
+      "models": [
+        {
+          "name": "Avenger M8",
+          "aliases": [
+            "Avenger M 8",
+            "Avenger Eight"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/55R17",
+            "235/55R18",
+            "245/45R18"
+          ]
+        },
+        {
+          "name": "Courser AXT2",
+          "aliases": [
+            "Courser AXT 2",
+            "Courser A X T 2"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        },
+        {
+          "name": "Courser MXT",
+          "aliases": [
+            "Courser M X T"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Stratus AS",
+          "aliases": [
+            "Stratus A S"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "185/65R15",
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/60R17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Sumitomo",
+      "aliases": [
+        "Sue Mitomo"
+      ],
+      "models": [
+        {
+          "name": "HTR A/S P02",
+          "aliases": [
+            "HTR AS P02",
+            "HTR A S P 02"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/45R17",
+            "235/45R18",
+            "245/45R18"
+          ]
+        },
+        {
+          "name": "HTR Z III",
+          "aliases": [
+            "HTR Z 3",
+            "HTR Z Three"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "205/45R17",
+            "225/45R17",
+            "245/40R18",
+            "255/35R20",
+            "275/30R19"
+          ]
+        },
+        {
+          "name": "Encounter AT",
+          "aliases": [
+            "Encounter A T"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        },
+        {
+          "name": "Encounter HT",
+          "aliases": [
+            "Encounter H T"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/65R17",
+            "245/60R18",
+            "265/60R18",
+            "275/55R20",
+            "275/60R20"
+          ]
+        },
+        {
+          "name": "Ice Edge",
+          "aliases": [],
+          "season": "winter",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/65R17",
+            "235/65R17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Uniroyal",
+      "aliases": [
+        "Uni Royal"
+      ],
+      "models": [
+        {
+          "name": "Tiger Paw GTZ All Season",
+          "aliases": [
+            "Tiger Paw GTZ AS",
+            "Tiger Paw G T Z All Season"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/45R17",
+            "245/40R18",
+            "275/35R19"
+          ]
+        },
+        {
+          "name": "Tiger Paw Touring A/S",
+          "aliases": [
+            "Tiger Paw Touring AS",
+            "Tiger Paw Touring A S"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "185/65R15",
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/60R17"
+          ]
+        },
+        {
+          "name": "Laredo Cross Country Tour",
+          "aliases": [
+            "Laredo CC Tour",
+            "Laredo Cross Country"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/65R17",
+            "245/60R18",
+            "265/60R18",
+            "275/55R20",
+            "275/60R20"
+          ]
+        },
+        {
+          "name": "Tiger Paw Ice & Snow 3",
+          "aliases": [
+            "Tiger Paw Ice and Snow 3",
+            "Tiger Paw Ice Snow Three"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/45R18",
+            "245/45R18"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Hercules",
+      "aliases": [
+        "Her Kew Lees"
+      ],
+      "models": [
+        {
+          "name": "Roadtour Connect AS",
+          "aliases": [
+            "Road Tour Connect AS",
+            "Roadtour AS"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/50R17",
+            "235/45R18"
+          ]
+        },
+        {
+          "name": "Terra Trac A/T II",
+          "aliases": [
+            "Terra Trac AT II",
+            "Terra Trac A T 2"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        },
+        {
+          "name": "Terra Trac M/T",
+          "aliases": [
+            "Terra Trac MT",
+            "Terra Trac M T"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Avalanche RT",
+          "aliases": [
+            "Avalanche R T"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "205/55R16",
+            "215/60R16",
+            "225/65R17",
+            "235/65R17",
+            "245/60R18"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Atturo",
+      "aliases": [
+        "A Turo",
+        "Aturo"
+      ],
+      "models": [
+        {
+          "name": "Trail Blade X/T",
+          "aliases": [
+            "Trail Blade XT",
+            "Trail Blade X T"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        },
+        {
+          "name": "Trail Blade M/T",
+          "aliases": [
+            "Trail Blade MT",
+            "Trail Blade M T"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Trail Blade A/T",
+          "aliases": [
+            "Trail Blade AT",
+            "Trail Blade A T"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        },
+        {
+          "name": "AZ800",
+          "aliases": [
+            "A Z 800",
+            "AZ 800"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/55R19",
+            "255/55R18",
+            "265/45R20",
+            "275/45R20",
+            "285/45R22"
+          ]
+        },
+        {
+          "name": "AZ850",
+          "aliases": [
+            "A Z 850",
+            "AZ 850"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/35R19",
+            "275/35R19",
+            "295/30R20"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Fuel",
+      "aliases": [],
+      "models": [
+        {
+          "name": "Gripper A/T",
+          "aliases": [
+            "Gripper AT",
+            "Gripper A T"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT275/65R20",
+            "LT285/70R17",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Gripper M/T",
+          "aliases": [
+            "Gripper MT",
+            "Gripper M T"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT37X12.50R20"
+          ]
+        },
+        {
+          "name": "Mud Gripper",
+          "aliases": [
+            "MudGripper"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20",
+            "LT37X13.50R20"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Pro Comp",
+      "aliases": [
+        "ProComp",
+        "Pro-Comp"
+      ],
+      "models": [
+        {
+          "name": "Xtreme MT2",
+          "aliases": [
+            "Extreme MT2",
+            "X Treme M T 2"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/75R16",
+            "LT285/75R16",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Xtreme A/T",
+          "aliases": [
+            "Extreme AT",
+            "X Treme A T"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/65R18",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Sport Series",
+          "aliases": [],
+          "season": "all-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/65R18",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Fierce",
+      "aliases": [],
+      "models": [
+        {
+          "name": "Attitude M/T",
+          "aliases": [
+            "Attitude MT",
+            "Attitude M T"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Federal",
+      "aliases": [],
+      "models": [
+        {
+          "name": "Couragia M/T",
+          "aliases": [
+            "Couragia MT",
+            "Couragia M T"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Couragia A/T 2",
+          "aliases": [
+            "Couragia AT 2",
+            "Couragia A T Two"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        },
+        {
+          "name": "Formoza FD2",
+          "aliases": [
+            "Formoza F D 2",
+            "Formoza Two"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/45R17",
+            "235/45R18"
+          ]
+        },
+        {
+          "name": "595 RS-PRO",
+          "aliases": [
+            "595 RSPro",
+            "595 R S Pro",
+            "Five Ninety Five RS Pro"
+          ],
+          "season": "performance",
+          "common_sizes": [
+            "205/50R15",
+            "225/45R17",
+            "245/40R17",
+            "275/35R18",
+            "305/30R19"
+          ]
+        },
+        {
+          "name": "595 RS-RR",
+          "aliases": [
+            "595 RSRR",
+            "595 R S R R",
+            "Five Ninety Five RSRR"
+          ],
+          "season": "performance",
+          "common_sizes": [
+            "205/50R15",
+            "225/45R17",
+            "245/40R17",
+            "275/35R18",
+            "305/30R19"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "GT Radial",
+      "aliases": [
+        "GT-Radial",
+        "GTRadial",
+        "Gee Tee Radial"
+      ],
+      "models": [
+        {
+          "name": "Champiro VP1",
+          "aliases": [
+            "VP1",
+            "Champiro V P 1"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "185/65R15",
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/50R17"
+          ]
+        },
+        {
+          "name": "Champiro UHP1",
+          "aliases": [
+            "UHP1",
+            "Champiro U H P 1"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "205/55R16",
+            "215/45R17",
+            "225/45R17",
+            "245/40R18",
+            "275/35R19"
+          ]
+        },
+        {
+          "name": "Maxtour LX",
+          "aliases": [
+            "Maxtour L X"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/55R17",
+            "235/55R18"
+          ]
+        },
+        {
+          "name": "Savero AT-S",
+          "aliases": [
+            "Savero ATS",
+            "Savero A T S"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        },
+        {
+          "name": "Savero MT2",
+          "aliases": [
+            "Savero M T 2",
+            "Savero Two"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "WinterPro 2",
+          "aliases": [
+            "Winter Pro 2",
+            "WinterPro Two"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/65R17",
+            "235/65R17"
+          ]
+        },
+        {
+          "name": "IcePro 3",
+          "aliases": [
+            "Ice Pro 3",
+            "IcePro Three"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/45R18",
+            "245/45R18",
+            "275/40R19"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Vredestein",
+      "aliases": [
+        "Vrede Stein",
+        "Verdestein"
+      ],
+      "models": [
+        {
+          "name": "Quatrac Pro+",
+          "aliases": [
+            "Quatrac Pro Plus",
+            "Quatrac Pro+",
+            "Kwatrak Pro"
+          ],
+          "season": "all-weather",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/45R18",
+            "235/45R18",
+            "245/45R18"
+          ]
+        },
+        {
+          "name": "Wintrac Pro",
+          "aliases": [
+            "Win Trac Pro"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "225/45R18",
+            "245/40R19",
+            "255/40R19",
+            "275/35R20",
+            "295/30R20"
+          ]
+        },
+        {
+          "name": "Ultrac Vorti+",
+          "aliases": [
+            "Ultrac Vorti Plus",
+            "Ultrac Vorti+"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/35R19",
+            "275/35R19",
+            "295/30R20"
+          ]
+        },
+        {
+          "name": "Pinza A/T",
+          "aliases": [
+            "Pinza AT",
+            "Pinza A T"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Avon",
+      "aliases": [],
+      "models": [
+        {
+          "name": "ZV7",
+          "aliases": [
+            "Z V 7"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/45R17",
+            "235/45R18",
+            "245/45R18"
+          ]
+        },
+        {
+          "name": "ZX7",
+          "aliases": [
+            "Z X 7"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/35R19",
+            "275/35R19",
+            "295/30R20"
+          ]
+        },
+        {
+          "name": "WX7",
+          "aliases": [
+            "W X 7"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/45R18",
+            "235/55R17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Kelly",
+      "aliases": [],
+      "models": [
+        {
+          "name": "Edge A/S",
+          "aliases": [
+            "Edge AS",
+            "Edge A S"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "185/65R15",
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/60R17"
+          ]
+        },
+        {
+          "name": "Edge HP",
+          "aliases": [
+            "Edge H P"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/45R17",
+            "235/45R18",
+            "245/40R19"
+          ]
+        },
+        {
+          "name": "Edge Sport",
+          "aliases": [],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/35R19",
+            "275/35R19",
+            "295/30R20"
+          ]
+        },
+        {
+          "name": "Edge AT",
+          "aliases": [
+            "Edge A T"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        },
+        {
+          "name": "Winter Access",
+          "aliases": [],
+          "season": "winter",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/65R17",
+            "235/65R17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Riken",
+      "aliases": [],
+      "models": [
+        {
+          "name": "Raptor ZR",
+          "aliases": [
+            "Raptor Z R"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "205/55R16",
+            "215/45R17",
+            "225/45R17",
+            "245/40R18",
+            "275/35R19"
+          ]
+        },
+        {
+          "name": "Maxion A/S",
+          "aliases": [
+            "Maxion AS",
+            "Maxion A S"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/55R17",
+            "235/55R18"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Westlake",
+      "aliases": [
+        "West Lake"
+      ],
+      "models": [
+        {
+          "name": "SU318",
+          "aliases": [
+            "S U 318"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/65R17",
+            "245/60R18",
+            "265/60R18",
+            "275/55R20",
+            "275/60R20"
+          ]
+        },
+        {
+          "name": "SL369",
+          "aliases": [
+            "S L 369"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        },
+        {
+          "name": "SA07",
+          "aliases": [
+            "S A 07"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "205/55R16",
+            "215/45R17",
+            "225/45R17",
+            "245/40R18",
+            "275/35R19"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Linglong",
+      "aliases": [
+        "Ling Long"
+      ],
+      "models": [
+        {
+          "name": "Crosswind A/T100",
+          "aliases": [
+            "Crosswind AT100",
+            "Crosswind A T 100"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        },
+        {
+          "name": "Crosswind H/T",
+          "aliases": [
+            "Crosswind HT",
+            "Crosswind H T"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "235/65R17",
+            "245/60R18",
+            "265/60R18",
+            "275/55R20",
+            "275/60R20"
+          ]
+        },
+        {
+          "name": "Greenmax UHP",
+          "aliases": [
+            "Green Max UHP",
+            "Greenmax U H P"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "205/55R16",
+            "215/45R17",
+            "225/45R17",
+            "245/40R18",
+            "275/35R19"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Sailun",
+      "aliases": [
+        "Say Loon"
+      ],
+      "models": [
+        {
+          "name": "Atrezzo SH408",
+          "aliases": [
+            "Atrezzo S H 408",
+            "Atrezzo 408"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "185/65R15",
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/60R17"
+          ]
+        },
+        {
+          "name": "Atrezzo ZSR",
+          "aliases": [
+            "Atrezzo Z S R"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/35R19",
+            "275/35R19",
+            "295/30R20"
+          ]
+        },
+        {
+          "name": "Terramax A/T",
+          "aliases": [
+            "Terramax AT",
+            "Terramax A T"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        },
+        {
+          "name": "Terramax M/T",
+          "aliases": [
+            "Terramax MT",
+            "Terramax M T"
+          ],
+          "season": "mud-terrain",
+          "common_sizes": [
+            "LT265/70R17",
+            "LT285/70R17",
+            "LT305/70R16",
+            "LT35X12.50R17",
+            "LT35X12.50R20"
+          ]
+        },
+        {
+          "name": "Ice Blazer Alpine+",
+          "aliases": [
+            "Ice Blazer Alpine Plus",
+            "Ice Blazer Alpine+"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/55R17",
+            "225/65R17",
+            "235/55R18"
+          ]
+        },
+        {
+          "name": "Inspire",
+          "aliases": [],
+          "season": "all-season",
+          "common_sizes": [
+            "205/55R16",
+            "215/55R17",
+            "225/50R17",
+            "235/55R18",
+            "245/45R18"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Triangle",
+      "aliases": [],
+      "models": [
+        {
+          "name": "TR918",
+          "aliases": [
+            "T R 918"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "205/55R16",
+            "215/45R17",
+            "225/45R17",
+            "245/40R18",
+            "275/35R19"
+          ]
+        },
+        {
+          "name": "TR652",
+          "aliases": [
+            "T R 652"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "185/65R15",
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/60R17"
+          ]
+        },
+        {
+          "name": "TR777",
+          "aliases": [
+            "T R 777"
+          ],
+          "season": "winter",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/65R17",
+            "235/65R17"
+          ]
+        },
+        {
+          "name": "AgileX AT",
+          "aliases": [
+            "AgileX A T",
+            "Agile X AT"
+          ],
+          "season": "all-terrain",
+          "common_sizes": [
+            "245/65R17",
+            "265/65R18",
+            "275/55R20",
+            "LT265/70R17",
+            "LT285/70R17"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Roadmaster",
+      "aliases": [
+        "Road Master"
+      ],
+      "models": [
+        {
+          "name": "RM275",
+          "aliases": [
+            "R M 275"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "205/55R16",
+            "215/45R17",
+            "225/45R17",
+            "245/40R18",
+            "275/35R19"
+          ]
+        },
+        {
+          "name": "RM276",
+          "aliases": [
+            "R M 276"
+          ],
+          "season": "summer",
+          "common_sizes": [
+            "225/45R17",
+            "245/40R18",
+            "255/35R19",
+            "275/35R19",
+            "295/30R20"
+          ]
+        },
+        {
+          "name": "RM230",
+          "aliases": [
+            "R M 230"
+          ],
+          "season": "all-season",
+          "common_sizes": [
+            "195/65R15",
+            "205/55R16",
+            "215/60R16",
+            "225/60R17",
+            "235/55R18"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ZyloTires",
+      "aliases": [],
+      "models": [
+        {
+          "name": "ThunderMax",
+          "aliases": []
+        }
+      ]
+    }
+  ]
+}

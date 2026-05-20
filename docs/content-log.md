@@ -110,3 +110,35 @@ Tireops had 113 test tires sitting in the database under "TEST" and "Test Shop" 
 The next tire added to this database becomes **tire-1**. A real one this time.
 
 **The lesson worth keeping:** snapshot before you wipe, even when you're sure it's all test data. The snapshot took 5 seconds to generate and zero seconds to be glad I had it. Reversible destruction beats irreversible destruction every time.
+
+---
+
+## 2026-05-20 — Tire knowledge base: catalog + fuzzy matcher + self-teaching
+
+The failure mode that started this: voice chat staff would say "Michelin Pilot Sport 4S" but Whisper would transcribe it as something garbled — "Mishelin Pilot Spore for ess" or worse. The chat agent had no controlled vocabulary to compare against, so it would either save the garbled string verbatim ("Mishelin" goes into the brand column) or interpret it with help from a hand-written rule in the system prompt ("be generous with brand names"). The system-prompt rule helped sometimes; the garbled brand still ended up in the database often enough.
+
+Today: built a fuzzy-match knowledge base, plumbed it into `add_tire`, and watched it work end-to-end.
+
+**Catalog** — `lib/tire-catalog.json`, 39 brands × 215 models with aliases for three categories of mishearing: phonetic ("Mishelin" → Michelin), shorthand ("PS4S" → Pilot Sport 4S, "BFG" → BFGoodrich), and Whisper-induced word splits ("Pilot Sport Force" → Pilot Sport 4S, "Wildpeak A T 3 W" → Wildpeak A/T3W). Picked the top 30 brands the user asked for plus 9 obvious ones (Vredestein, Avon, Kelly, Riken, Westlake, Linglong, Sailun, Triangle, Roadmaster). Each model has 5 common sizes recorded as metadata — not used by the matcher today, but easy to plug into future "did you mean size X?" suggestions.
+
+**Matcher** — `lib/tire-catalog.ts`, hand-rolled Sørensen-Dice on character trigrams (~15 lines, zero new deps). Each input scored against every canonical + alias for every entry; best score wins. Three tiers:
+
+- **HIGH** (score > 0.85 *and* clear gap to the runner-up): silent canonical substitution.
+- **MEDIUM** (in the 0.6–0.85 range, or two candidates both above 0.6 with a tight gap): return alternates, let the assistant ask the user.
+- **NONE** (best score < 0.6): trigger the learn flow.
+
+The "gap to runner-up" rule was a bug I had to fix mid-test. My first version flagged any exact match as medium if a sibling model in the same brand scored above 0.6 — so "Pilot Sport 4S" came back as medium just because "Pilot Sport 5" also scored 0.77. Wrong. The corrected rule: top must clear 0.85 AND be more than 0.15 ahead of the second-best. A 1.000 with a 0.77 runner-up has a 0.23 gap → clean winner, HIGH. Two candidates at 0.696 each (the Bridgestone Blizzak WS90 vs DM-V2 case) have a gap of 0 → ambiguous → MEDIUM. Real ambiguity vs apparent ambiguity.
+
+**Integration** — `runAddTire` in the chat route now runs the brand matcher first, then (if brand resolved) the model matcher. On a non-HIGH result, it returns a status field — `needs_brand_confirmation`, `needs_model_confirmation`, `unknown_brand`, or `unknown_model` — instead of inserting. The assistant follows rule 16 in the system prompt: present alternates, wait for user reply in a separate turn, retry `add_tire` with `confirmed_brand: true` (and/or `confirmed_model`) to bypass the matcher on the second pass. For the learn flow, a new `learn_tire_term` tool persists user-confirmed terms to the JSON via `fs.writeFile`. On Vercel that write is silently no-op'd because the runtime FS is read-only — the catalog grows in dev sessions and gets committed to git like any other change.
+
+**Three live tests passed:**
+
+1. *High path:* "Michelin Pilot Sport 4S, 245/40R18, set of 4..." — one HTTP turn, silent canonical substitution, tire-140 inserted.
+2. *Medium path:* "Birdgestone Blizzak..." — interesting wrinkle: Claude pre-corrected "Birdgestone" → "Bridgestone" before even calling the tool, so the matcher saw "Bridgestone" → HIGH. The actual medium tier fired on the model: "Blizzak" alone matches both WS90 and DM-V2 at exactly the same trigram score (0.696). AI asked "WS90 or DM-V2?", user clarified, retry with `confirmed_model: true` succeeded. tire-141 inserted.
+3. *Unknown path:* "ZyloTires ThunderMax..." (fictional). First call returned `unknown_brand`. User spelled. AI called `learn_tire_term(kind=brand)` → success. Then `learn_tire_term(kind=model, brand=ZyloTires)` → success. Then `add_tire` with both confirmed flags → tire-142 inserted. The catalog grew from 39 to 40 brands; the JSON file on disk now contains ZyloTires.
+
+Late refinement: when the canonical substitution differs from what the user said, rule 16 now requires the AI to flag the change explicitly in its reply ("I saved that as Michelin Pilot Sport 4S — let me know if you meant something different") rather than mention it in passing. The user asked for this after seeing the silent substitution behavior in the test transcripts and worrying that a wrong correction would slip through. Good catch.
+
+**What's NOT yet here, by design:** hands-free voice (separate sprint). Sizes-aware matching ("did you mean 235/55R17?"). Supabase-backed catalog (deferred — Vercel-side learning would require it, but the local-only commit-to-grow pattern works today). Cross-brand model disambiguation (Michelin's "Latitude" vs Continental's same name).
+
+**The lesson worth keeping:** the tier rule was wrong on first write because it treated "similar siblings exist" as ambiguity. A real ambiguity test isn't "any near-miss exists" — it's "the runner-up is close to the winner." That's the actual user-experience question: would the user have to think about which one? If yes, ask. If no, just substitute. Smoke-testing across 24 inputs caught the bug before it shipped; would have been a confidence-shaking demo otherwise.
