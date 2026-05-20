@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "node scripts/copy-vad-assets.mjs"
   },
   "dependencies": {
     "@ricky0123/vad-web": "^0.0.30",
