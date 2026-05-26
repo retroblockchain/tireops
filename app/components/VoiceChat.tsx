@@ -3,11 +3,35 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLORS, RADII, SHADOWS } from '../../lib/theme';
 import { useAuthInfo } from '../../lib/useCurrentShop';
 import { uploadPendingPhoto } from '../../lib/photos';
+import { TireCard } from './TireCard';
+
+// Shape of a tire row coming back from search_tires — a subset of the
+// tires table row, but structurally compatible with TireCard's Tire prop.
+// Re-declared locally rather than imported to keep TireCard.tsx untouched.
+type TireCardData = {
+  id: string;
+  tire_number?: number | string | null;
+  shop?: string | null;
+  location?: string | null;
+  size?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  season?: string | null;
+  condition?: string | null;
+  quantity?: number | string | null;
+  price?: number | string | null;
+  status?: string | null;
+  created_at?: string | null;
+};
 
 type UiMsg = {
   role: 'user' | 'assistant';
   text: string;
   attachmentName?: string;
+  // Tire cards to render below the message text. Populated when the
+  // assistant's reply was preceded by a successful search_tires tool
+  // call — see the stream-end handler in send().
+  cards?: TireCardData[];
 };
 type ContentBlock =
   | { type: 'text'; text: string }
@@ -131,6 +155,49 @@ type VoiceChatProps = {
   variant?: 'page' | 'embedded';
   initialCollapsed?: boolean;
 };
+
+// Pull the rows from the LAST search_tires tool_result inside the most
+// recent conversational turn. "Most recent turn" = everything after the
+// most recent real user message (text content, not a tool_result-only
+// scaffolding message inserted by the tool loop). Returns [] if no
+// search_tires happened in this turn, OR if the tool_result content
+// wasn't parseable as the expected {count, rows} shape. Used by the
+// stream-end handler to attach cards to the assistant's UiMsg.
+function extractSearchCardsForLatestTurn(messages: ApiMsg[]): TireCardData[] {
+  let turnStartIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== 'user') continue;
+    const isToolResultOnly =
+      Array.isArray(m.content) &&
+      m.content.length > 0 &&
+      m.content.every((b) => b.type === 'tool_result');
+    if (!isToolResultOnly) {
+      turnStartIdx = i;
+      break;
+    }
+  }
+  if (turnStartIdx < 0) return [];
+  let latestRows: TireCardData[] | null = null;
+  for (let i = turnStartIdx + 1; i < messages.length; i++) {
+    const m = messages[i];
+    if (m.role !== 'user' || typeof m.content === 'string') continue;
+    for (const block of m.content) {
+      if (block.type !== 'tool_result') continue;
+      try {
+        const parsed = JSON.parse(block.content);
+        if (Array.isArray(parsed?.rows)) {
+          latestRows = (parsed.rows as unknown[]).filter(
+            (r) => r && typeof r === 'object' && 'id' in r,
+          ) as TireCardData[];
+        }
+      } catch {
+        // Not JSON or wrong shape — skip.
+      }
+    }
+  }
+  return latestRows ?? [];
+}
 
 export default function VoiceChat({
   variant = 'page',
@@ -769,6 +836,21 @@ export default function VoiceChat({
 
       if (finalMessages) {
         setApiMessages(finalMessages);
+        // If this turn included a search_tires call, attach the rows as
+        // cards on the trailing assistant UiMsg so they render below the
+        // text reply.
+        const cards = extractSearchCardsForLatestTurn(finalMessages);
+        if (cards.length > 0) {
+          setUiMessages((prev) => {
+            const copy = [...prev];
+            const lastIdx = copy.length - 1;
+            const last = copy[lastIdx];
+            if (last && last.role === 'assistant') {
+              copy[lastIdx] = { ...last, cards };
+            }
+            return copy;
+          });
+        }
       }
 
       // Fire TTS the instant streaming ends. (Streaming the audio itself
@@ -1101,14 +1183,15 @@ export default function VoiceChat({
           </div>
         )}
         {uiMessages.map((m, i) => (
-          <div
-            key={i}
-            style={{
-              display: 'flex',
-              justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
-              marginBottom: 10,
-            }}
-          >
+          <div key={i}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
+                // Tighter spacing under the bubble when cards follow.
+                marginBottom: m.cards && m.cards.length > 0 ? 6 : 10,
+              }}
+            >
             <div
               style={{
                 maxWidth: '82%',
@@ -1185,6 +1268,14 @@ export default function VoiceChat({
                 ''
               )}
             </div>
+            </div>
+            {m.cards && m.cards.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                {m.cards.map((t) => (
+                  <TireCard key={t.id} tire={t} />
+                ))}
+              </div>
+            )}
           </div>
         ))}
         {(() => {
