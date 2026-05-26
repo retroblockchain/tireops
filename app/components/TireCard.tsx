@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import { COLORS, RADII, SHADOWS } from '../../lib/theme';
 import {
   STALE_STYLE,
@@ -41,6 +42,11 @@ const PILL_BASE = {
 };
 
 export function TireCard({ tire: t, thumbUrl }: Props) {
+  // Track image load failure so a broken URL falls back to the same
+  // placeholder slot that renders when thumbUrl is missing — keeps the
+  // card layout identical in both cases.
+  const [imgFailed, setImgFailed] = useState(false);
+  const showImg = !!thumbUrl && !imgFailed;
   return (
     <a
       href={`/edit/${t.id}`}
@@ -57,23 +63,46 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'stretch', gap: 14 }}>
-        {thumbUrl && (
-          <img
-            src={thumbUrl}
-            alt=""
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = 'none';
-            }}
-            style={{
-              width: 68,
-              height: 68,
-              borderRadius: RADII.control,
-              objectFit: 'cover',
-              background: COLORS.surfaceSoft,
-              flexShrink: 0,
-            }}
-          />
-        )}
+        <div
+          style={{
+            width: 68,
+            height: 68,
+            borderRadius: RADII.control,
+            background: COLORS.surfaceSoft,
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            color: COLORS.textMuted,
+          }}
+        >
+          {showImg ? (
+            <img
+              src={thumbUrl as string}
+              alt=""
+              onError={() => setImgFailed(true)}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block',
+              }}
+            />
+          ) : (
+            <svg
+              viewBox="0 0 40 40"
+              width="60%"
+              height="60%"
+              aria-hidden="true"
+              style={{ opacity: 0.5 }}
+            >
+              <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" />
+              <circle cx="20" cy="20" r="13" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              <circle cx="20" cy="20" r="5" fill="currentColor" />
+            </svg>
+          )}
+        </div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div
             style={{

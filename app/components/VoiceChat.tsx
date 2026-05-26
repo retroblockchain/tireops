@@ -130,11 +130,20 @@ function saveStoredChat(state: StoredChat) {
 type VoiceChatProps = {
   variant?: 'page' | 'embedded';
   initialCollapsed?: boolean;
+  // Called after each assistant turn that includes a search_tires tool call,
+  // with the raw rows from that turn. Lets a parent surface (e.g. dashboard)
+  // swap its content to match what the AI just searched.
+  onSearchResults?: (rows: unknown[]) => void;
+  // Called when the user explicitly clears the chat ("New chat" two-tap).
+  // Lets the parent reset any state it derived from the chat.
+  onChatCleared?: () => void;
 };
 
 export default function VoiceChat({
   variant = 'page',
   initialCollapsed = false,
+  onSearchResults,
+  onChatCleared,
 }: VoiceChatProps) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const { shop: currentShop, email: currentUserEmail } = useAuthInfo();
@@ -429,6 +438,7 @@ export default function VoiceChat({
         clearTimeout(clearArmTimerRef.current);
         clearArmTimerRef.current = null;
       }
+      onChatCleared?.();
       return;
     }
     // First tap — arm and start the 3 s revert timer.
@@ -738,7 +748,15 @@ export default function VoiceChat({
         for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed) continue;
-          let event: { type?: string; text?: string; messages?: ApiMsg[]; error?: string };
+          let event: {
+            type?: string;
+            text?: string;
+            messages?: ApiMsg[];
+            error?: string;
+            tool_use_id?: string;
+            name?: string;
+            content?: string;
+          };
           try {
             event = JSON.parse(trimmed);
           } catch {
@@ -759,6 +777,21 @@ export default function VoiceChat({
               }
               return copy;
             });
+          } else if (
+            event.type === 'tool_result' &&
+            event.name === 'search_tires' &&
+            typeof event.content === 'string'
+          ) {
+            // Fire onSearchResults the moment the DB query returns — dashboard
+            // cards populate while the AI is still streaming its summary above.
+            try {
+              const parsed = JSON.parse(event.content);
+              if (parsed && Array.isArray(parsed.rows) && parsed.rows.length > 0) {
+                onSearchResults?.(parsed.rows);
+              }
+            } catch {
+              /* malformed tool_result payload — skip */
+            }
           } else if (event.type === 'end' && Array.isArray(event.messages)) {
             finalMessages = event.messages;
           } else if (event.type === 'error') {

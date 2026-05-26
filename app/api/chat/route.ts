@@ -1192,6 +1192,10 @@ export async function POST(req: NextRequest) {
 
   // Stream NDJSON to the client. Each line is one event:
   //   { "type": "delta", "text": "..." }   text fragment from Claude
+  //   { "type": "tool_result", "tool_use_id": "...", "name": "...", "content": "..." }
+  //     fires the instant a tool returns (between Anthropic calls in the tool
+  //     loop). Lets the client surface search results on the dashboard while
+  //     the AI is still streaming its natural-language summary above.
   //   { "type": "end",   "messages": [...] }  conversation history at completion
   //   { "type": "error", "error": "..." }  fatal stream error
   // The client reads chunks, fills the placeholder assistant bubble live, then
@@ -1255,10 +1259,20 @@ export async function POST(req: NextRequest) {
               userEmail,
               source,
             );
+            const contentJson = JSON.stringify(out);
+            // Mid-stream notice so the client can react to the tool's output
+            // (e.g. swap dashboard panel to "Search tires" rows) before the
+            // next Anthropic call begins streaming text.
+            enqueue({
+              type: 'tool_result',
+              tool_use_id: tu.id,
+              name: tu.name,
+              content: contentJson,
+            });
             toolResults.push({
               type: 'tool_result',
               tool_use_id: tu.id,
-              content: JSON.stringify(out),
+              content: contentJson,
             });
           }
           messages.push({ role: 'user', content: toolResults });

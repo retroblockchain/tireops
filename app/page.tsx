@@ -69,6 +69,14 @@ export default function Home() {
   const [photosByTire, setPhotosByTire] = useState<Map<string, string>>(
     new Map(),
   );
+  // Section-swap state for the "Recently added" panel. When the AI runs a
+  // search_tires from the embedded chat, the section flips to show those
+  // results instead of recent additions. Sticky: stays in search mode
+  // until the user clears the chat (the only reliable "I'm done with that
+  // search" signal we have — add_tire after a search shouldn't bounce
+  // back to recent).
+  const [sectionMode, setSectionMode] = useState<'recent' | 'search'>('recent');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   const currentShop = useCurrentShop();
 
   useEffect(() => {
@@ -329,35 +337,58 @@ export default function Home() {
       </nav>
 
       {/* ----- AI chat: the obvious primary thing when the app opens ----- */}
-      <VoiceChat variant="embedded" />
+      <VoiceChat
+        variant="embedded"
+        onSearchResults={(rows) => {
+          setSearchResults(rows as any[]);
+          setSectionMode('search');
+        }}
+        onChatCleared={() => {
+          setSearchResults([]);
+          setSectionMode('recent');
+        }}
+      />
 
-      {/* ----- 3 most recent additions: compact, just enough to glance ----- */}
-      <section style={{ marginBottom: 22 }}>
-        <h2 style={sectionHeaderStyle}>Recently added</h2>
-        {recentAdded.length === 0 ? (
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '20px 16px',
-              color: COLORS.textMuted,
-              fontSize: 13,
-              border: `1px dashed ${COLORS.border}`,
-              borderRadius: RADII.card,
-              background: COLORS.surface,
-            }}
-          >
-            No tires yet. Try voice or tap + Add tire.
-          </div>
-        ) : (
-          recentAdded.map((t) => (
-            <TireCard
-              key={`r-${t.id}`}
-              tire={t}
-              thumbUrl={photosByTire.get(t.id)}
-            />
-          ))
-        )}
-      </section>
+      {/* ----- Recent / Search swap: 3 recent additions by default, AI    -----
+          ----- search results when the embedded chat just ran a query.   ----- */}
+      {(() => {
+        const isSearch = sectionMode === 'search';
+        const sectionData = isSearch ? searchResults : recentAdded;
+        const sectionTitle = isSearch
+          ? `Search tires (${searchResults.length})`
+          : `Recently added (${recentAdded.length})`;
+        const emptyText = isSearch
+          ? 'No matches. Try a different search.'
+          : 'No tires yet. Try voice or tap + Add tire.';
+        return (
+          <section style={{ marginBottom: 22 }}>
+            <h2 style={sectionHeaderStyle}>{sectionTitle}</h2>
+            {sectionData.length === 0 ? (
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '20px 16px',
+                  color: COLORS.textMuted,
+                  fontSize: 13,
+                  border: `1px dashed ${COLORS.border}`,
+                  borderRadius: RADII.card,
+                  background: COLORS.surface,
+                }}
+              >
+                {emptyText}
+              </div>
+            ) : (
+              sectionData.map((t) => (
+                <TireCard
+                  key={`${isSearch ? 's' : 'r'}-${t.id}`}
+                  tire={t}
+                  thumbUrl={photosByTire.get(t.id)}
+                />
+              ))
+            )}
+          </section>
+        );
+      })()}
 
       {/* ----- Stock: per-shop listings + physical tires + total row ----- */}
       <section style={{ marginBottom: 22 }}>
