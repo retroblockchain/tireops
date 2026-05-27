@@ -15,6 +15,7 @@ import { TIRE_STATUSES, statusStyle } from '../../../lib/tireStatus';
 import { RADII, SHADOWS } from '../../../lib/theme';
 import { LocationInput } from '../../components/LocationInput';
 import { canonicalizeLocation } from '../../../lib/locations';
+import { prepareTireSizeFields } from '../../../lib/tire-size';
 
 type Field = { key: string; label: string; type?: string };
 // `location` is rendered with a dedicated LocationInput picker — see the
@@ -75,6 +76,7 @@ export default function EditTire() {
     // Canonicalize so "warehouse"/"WAREHOUSE" save as "Warehouse" and an
     // empty custom-text box clears the column instead of storing "".
     const cleanedLocation = canonicalizeLocation(tire.location);
+    const sizeFields = prepareTireSizeFields(tire.size);
     const patch = {
       shop: tire.shop,
       location: cleanedLocation || null,
@@ -88,6 +90,10 @@ export default function EditTire() {
       price: tire.price,
       notes: tire.notes,
       status: tire.status || 'available',
+      size_raw: sizeFields.size_raw,
+      width: sizeFields.width,
+      aspect_ratio: sizeFields.aspect_ratio,
+      diameter: sizeFields.diameter,
     };
     const { data: updated } = await supabase
       .from('tires')
@@ -100,6 +106,14 @@ export default function EditTire() {
       tire: updated ?? { ...patch, id: tireId },
       source: 'form',
     });
+    if (sizeFields.warning) {
+      try {
+        sessionStorage.setItem('tireSaveWarning', JSON.stringify({
+          message: sizeFields.warning,
+          sizeRaw: sizeFields.size_raw,
+        }));
+      } catch { /* quota — warning just won't show */ }
+    }
     router.push('/');
   };
 

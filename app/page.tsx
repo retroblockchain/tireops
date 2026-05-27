@@ -77,6 +77,7 @@ export default function Home() {
   // back to recent).
   const [sectionMode, setSectionMode] = useState<'recent' | 'search'>('recent');
   const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [saveWarning, setSaveWarning] = useState<{ message: string; sizeRaw: string | null } | null>(null);
   const currentShop = useCurrentShop();
 
   useEffect(() => {
@@ -86,6 +87,16 @@ export default function Home() {
       .order('created_at', { ascending: false })
       .then(({ data }) => setTires(data || []));
     loadFirstPhotosByTire().then(setPhotosByTire);
+    // Pick up a one-shot warning from a manual add/edit form that
+    // couldn't parse the tire size. Shown once, then cleared.
+    try {
+      const raw = sessionStorage.getItem('tireSaveWarning');
+      if (raw) {
+        sessionStorage.removeItem('tireSaveWarning');
+        const parsed = JSON.parse(raw);
+        if (parsed?.message) setSaveWarning(parsed);
+      }
+    } catch { /* missing or malformed — skip */ }
   }, []);
 
   // Live = not sold. Sold tires don't surface anywhere on the dashboard —
@@ -205,6 +216,48 @@ export default function Home() {
           Sign out
         </button>
       </header>
+
+      {saveWarning && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 10,
+            padding: '12px 14px',
+            marginBottom: 12,
+            background: '#FEF3C7',
+            border: '1px solid #F59E0B',
+            borderRadius: RADII.card,
+            fontSize: 13,
+            color: '#92400E',
+            fontWeight: 500,
+            lineHeight: 1.4,
+          }}
+        >
+          <span style={{ flex: 1 }}>
+            Tire saved, but couldn&apos;t parse size
+            {saveWarning.sizeRaw ? ` "${saveWarning.sizeRaw}"` : ''}
+            {' '}&mdash; open the tire to fix it.
+          </span>
+          <button
+            onClick={() => setSaveWarning(null)}
+            aria-label="Dismiss"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#92400E',
+              fontSize: 18,
+              fontWeight: 700,
+              cursor: 'pointer',
+              padding: 0,
+              lineHeight: 1,
+              flexShrink: 0,
+            }}
+          >
+            &times;
+          </button>
+        </div>
+      )}
 
       {/*
         Top menu bar — sits directly under the header and visually distinct

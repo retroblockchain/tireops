@@ -11,6 +11,7 @@ import {
   addBrandToCatalog,
   addModelToCatalog,
 } from '../../../lib/tire-catalog';
+import { prepareTireSizeFields } from '../../../lib/tire-size';
 
 export const runtime = 'nodejs';
 
@@ -466,6 +467,14 @@ async function runAddTire(
     row.size = r.match; // canonical (case/whitespace) form when exact match
   }
 
+  // Normalize size into structured columns. Runs after matchSize() so
+  // the canonical form (if any) is what gets normalized.
+  const sizeFields = prepareTireSizeFields(row.size as string | undefined);
+  row.size_raw = sizeFields.size_raw;
+  row.width = sizeFields.width;
+  row.aspect_ratio = sizeFields.aspect_ratio;
+  row.diameter = sizeFields.diameter;
+
   const missing = RECOMMENDED_FIELDS.filter((f) => row[f] === undefined);
   const { data, error } = await supabase.from('tires').insert(row).select().single();
   if (error) return { error: error.message, missing };
@@ -488,7 +497,7 @@ async function runAddTire(
   }
 
   await insertActivityLog({ action: 'added', tire: data, source, userEmail });
-  return { inserted: data, missing, photos_attached: photosAttached };
+  return { inserted: data, missing, photos_attached: photosAttached, size_warning: sizeFields.warning };
 }
 
 async function runUpdateTire(
@@ -512,10 +521,21 @@ async function runUpdateTire(
     patch.location = canon ? canon : null;
   }
   if (Object.keys(patch).length === 0) return { error: 'no fields to update' };
+
+  let sizeWarning: string | null = null;
+  if (patch.size !== undefined) {
+    const sizeFields = prepareTireSizeFields(patch.size as string);
+    patch.size_raw = sizeFields.size_raw;
+    patch.width = sizeFields.width;
+    patch.aspect_ratio = sizeFields.aspect_ratio;
+    patch.diameter = sizeFields.diameter;
+    sizeWarning = sizeFields.warning;
+  }
+
   const { data, error } = await supabase.from('tires').update(patch).eq('id', id).select().single();
   if (error) return { error: error.message };
   await insertActivityLog({ action: 'edited', tire: data, source, userEmail });
-  return { updated: data };
+  return { updated: data, size_warning: sizeWarning };
 }
 
 async function runDeleteTire(

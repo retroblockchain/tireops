@@ -9,6 +9,7 @@ import { UNASSIGNED_SHOP } from '../../lib/shops';
 import { logActivity } from '../../lib/activity';
 import { LocationInput } from '../components/LocationInput';
 import { canonicalizeLocation } from '../../lib/locations';
+import { prepareTireSizeFields } from '../../lib/tire-size';
 
 type Field = {
   key: string;
@@ -85,10 +86,15 @@ export default function AddTire() {
       // Canonicalize location so "warehouse"/"WAREHOUSE" save as "Warehouse"
       // and an empty custom-text box clears the column instead of saving "".
       const cleanedLocation = canonicalizeLocation(tire.location);
+      const sizeFields = prepareTireSizeFields(tire.size);
       const payload = {
         ...tire,
         shop: tire.shop || 'TEST',
         location: cleanedLocation || null,
+        size_raw: sizeFields.size_raw,
+        width: sizeFields.width,
+        aspect_ratio: sizeFields.aspect_ratio,
+        diameter: sizeFields.diameter,
       };
       const { data: inserted, error: insertError } = await supabase
         .from('tires')
@@ -103,6 +109,14 @@ export default function AddTire() {
         await uploadTirePhoto(f, inserted.id);
       }
       await logActivity({ action: 'added', tire: inserted, source: 'form' });
+      if (sizeFields.warning) {
+        try {
+          sessionStorage.setItem('tireSaveWarning', JSON.stringify({
+            message: sizeFields.warning,
+            sizeRaw: sizeFields.size_raw,
+          }));
+        } catch { /* quota — warning just won't show */ }
+      }
       router.push('/');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
