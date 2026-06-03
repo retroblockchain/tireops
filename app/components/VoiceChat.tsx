@@ -1101,12 +1101,15 @@ export default function VoiceChat({
           // pushing the mic and Send controls off the bottom of the screen.
           flex: 1,
           minHeight: 60,
+          minWidth: 0,
           overflowY: 'auto',
+          overflowX: 'hidden',
           border: `1px solid ${COLORS.border}`,
           borderRadius: RADII.card,
           padding: 14,
           marginBottom: 12,
           background: variant === 'page' ? COLORS.surface : COLORS.bg,
+          boxSizing: 'border-box',
         }}
       >
         {uiMessages.length === 0 && (
@@ -1140,11 +1143,14 @@ export default function VoiceChat({
               display: 'flex',
               justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
               marginBottom: 10,
+              minWidth: 0,
+              maxWidth: '100%',
             }}
           >
             <div
               style={{
                 maxWidth: '82%',
+                minWidth: 0,
                 padding: '9px 13px',
                 borderRadius: 16,
                 background: m.role === 'user' ? COLORS.red : COLORS.surface,
@@ -1157,6 +1163,7 @@ export default function VoiceChat({
                 wordBreak: 'break-word',
                 lineHeight: 1.4,
                 boxShadow: m.role === 'assistant' ? SHADOWS.card : 'none',
+                boxSizing: 'border-box',
               }}
             >
               {m.attachmentName && (
@@ -1746,6 +1753,11 @@ export default function VoiceChat({
               borderTop: `1px solid ${COLORS.border}`,
               paddingTop: 12,
               background: COLORS.surface,
+              width: '100%',
+              minWidth: 0,
+              maxWidth: '100%',
+              boxSizing: 'border-box',
+              overflowX: 'hidden',
             }}
           >
             {innerContent}
