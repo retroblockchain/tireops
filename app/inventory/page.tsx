@@ -146,7 +146,7 @@ export default function InventoryPage() {
   const shown = liveTires
     .filter((t) => {
       const friendly = t.tire_number != null ? `tire-${t.tire_number}` : '';
-      const text = `${friendly} ${t.brand} ${t.model} ${t.size} ${t.season} ${t.shop} ${t.location || ''}`.toLowerCase();
+      const text = `${friendly} ${t.brand} ${t.model} ${t.size} ${t.season} ${t.shop} ${t.location || ''} ${t.service_type || ''} ${t.load_range || ''}`.toLowerCase();
       return text.includes(q.toLowerCase());
     })
     .filter((t) => (staleOnly ? isStale(t.created_at, t.status) : true))

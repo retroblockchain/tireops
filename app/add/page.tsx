@@ -10,6 +10,7 @@ import { logActivity } from '../../lib/activity';
 import { LocationInput } from '../components/LocationInput';
 import { canonicalizeLocation } from '../../lib/locations';
 import { prepareTireSizeFields } from '../../lib/tire-size';
+import { plyForLoadRange } from '../../lib/loadRange';
 
 type Field = {
   key: string;
@@ -27,6 +28,8 @@ const FIELDS: Field[] = [
   { key: 'size', label: 'Size', placeholder: 'e.g. 225/65R17' },
   { key: 'season', label: 'Season', placeholder: 'summer, winter, or all-season' },
   { key: 'condition', label: 'Condition', placeholder: 'new or used' },
+  { key: 'service_type', label: 'Service type', placeholder: 'P (passenger) or LT (light truck)' },
+  { key: 'load_range', label: 'Load range', placeholder: 'B, C, D, E, F (truck tires only)' },
   { key: 'tread_pct', label: 'Tread %', placeholder: '0 to 100', type: 'number' },
   { key: 'quantity', label: 'Quantity', placeholder: 'how many in stock', type: 'number' },
   { key: 'price', label: 'Price', placeholder: 'in dollars', type: 'number' },
@@ -232,6 +235,11 @@ export default function AddTire() {
                   boxSizing: 'border-box',
                 }}
               />
+              {f.key === 'load_range' && plyForLoadRange(tire.load_range) != null && (
+                <p style={{ fontSize: 12, color: COLORS.textMuted, margin: '6px 0 0' }}>
+                  {plyForLoadRange(tire.load_range)}-ply equivalent
+                </p>
+              )}
             </>
           )}
         </div>

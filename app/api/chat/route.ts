@@ -145,6 +145,8 @@ const TOOLS = [
         size: { type: 'string', description: 'e.g. "225/65R17"' },
         season: { type: 'string', description: '"summer", "winter", or "all-season"' },
         condition: { type: 'string', description: '"new" or "used"' },
+        service_type: { type: 'string', description: '"P" (passenger) or "LT" (light truck). LT indicates a truck tire.' },
+        load_range: { type: 'string', description: 'Single letter B/C/D/E/F (B=4-ply, C=6, D=8, E=10, F=12). Truck-tire load capacity rating.' },
         shop: { type: 'string' },
         location: { type: 'string', description: 'Physical storage location — recognized presets are "Showroom", "Warehouse", "Container", "Yard", but any custom string also works. Partial case-insensitive match.' },
         tire_number: { type: 'number', description: 'Exact match on tire_number — e.g. 25 finds the tire shown to users as "tire-25".' },
@@ -167,6 +169,8 @@ const TOOLS = [
         size: { type: 'string' },
         season: { type: 'string' },
         condition: { type: 'string' },
+        service_type: { type: 'string', description: '"P" (passenger) or "LT" (light truck). Leave unset for normal passenger tires.' },
+        load_range: { type: 'string', description: 'Single letter B/C/D/E/F. Truck-tire load rating; usually only relevant when service_type is "LT".' },
         tread_pct: { type: 'number' },
         quantity: { type: 'number' },
         price: { type: 'number' },
@@ -206,6 +210,8 @@ const TOOLS = [
         size: { type: 'string' },
         season: { type: 'string' },
         condition: { type: 'string' },
+        service_type: { type: 'string', description: '"P" (passenger) or "LT" (light truck).' },
+        load_range: { type: 'string', description: 'Single letter B/C/D/E/F. Truck-tire load rating.' },
         tread_pct: { type: 'number' },
         quantity: { type: 'number' },
         price: { type: 'number' },
@@ -314,6 +320,8 @@ async function runSearchTires(input: ToolInput) {
     'size',
     'season',
     'condition',
+    'service_type',
+    'load_range',
     'shop',
     'location',
   ] as const;
@@ -354,6 +362,8 @@ async function runSearchTires(input: ToolInput) {
         r.location,
         r.notes,
         r.condition,
+        r.service_type,
+        r.load_range,
       ]
         .filter(Boolean)
         .join(' ')
@@ -394,7 +404,7 @@ async function runAddTire(
   source: ActivitySource,
 ) {
   const row: Record<string, unknown> = {};
-  for (const f of ['shop', 'brand', 'model', 'size', 'season', 'condition', 'tread_pct', 'quantity', 'price', 'notes']) {
+  for (const f of ['shop', 'brand', 'model', 'size', 'season', 'condition', 'service_type', 'load_range', 'tread_pct', 'quantity', 'price', 'notes']) {
     if (input[f] !== undefined && input[f] !== null && input[f] !== '') row[f] = input[f];
   }
   if (!row.shop && currentShop && currentShop !== UNASSIGNED_SHOP) {
@@ -510,7 +520,7 @@ async function runUpdateTire(
   const id = await resolveTireId(rawId);
   if (!id) return { error: `tire not found: "${rawId}"` };
   const patch: Record<string, unknown> = {};
-  for (const f of ['shop', 'brand', 'model', 'size', 'season', 'condition', 'tread_pct', 'quantity', 'price', 'notes', 'status']) {
+  for (const f of ['shop', 'brand', 'model', 'size', 'season', 'condition', 'service_type', 'load_range', 'tread_pct', 'quantity', 'price', 'notes', 'status']) {
     if (input[f] !== undefined && input[f] !== null && input[f] !== '') patch[f] = input[f];
   }
   // Location supports clearing — explicit "" from the AI means "remove the

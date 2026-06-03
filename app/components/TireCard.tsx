@@ -7,6 +7,7 @@ import {
   isStale,
   statusStyle,
 } from '../../lib/tireStatus';
+import { formatLoadRange } from '../../lib/loadRange';
 
 type Tire = {
   id: string;
@@ -18,6 +19,8 @@ type Tire = {
   model?: string | null;
   season?: string | null;
   condition?: string | null;
+  service_type?: string | null;
+  load_range?: string | null;
   quantity?: number | string | null;
   price?: number | string | null;
   status?: string | null;
@@ -215,6 +218,34 @@ export function TireCard({ tire: t, thumbUrl }: Props) {
                 title={`In stock ${daysInStock(t.created_at)} days`}
               >
                 ⚠ {daysInStock(t.created_at)}d
+              </span>
+            )}
+            {(t.service_type || '').trim().toUpperCase() === 'LT' && (
+              <span
+                style={{
+                  ...PILL_BASE,
+                  fontWeight: 700,
+                  background: COLORS.ink,
+                  color: COLORS.bg,
+                  border: '1px solid transparent',
+                }}
+                title="Light truck tire"
+              >
+                LT
+              </span>
+            )}
+            {t.load_range && formatLoadRange(t.load_range) && (
+              <span
+                style={{
+                  ...PILL_BASE,
+                  letterSpacing: 0.2,
+                  background: COLORS.surfaceSoft,
+                  color: COLORS.textBody,
+                  border: `1px solid ${COLORS.border}`,
+                }}
+                title="Load range / ply rating"
+              >
+                {formatLoadRange(t.load_range)}
               </span>
             )}
             {t.season && (

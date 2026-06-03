@@ -16,6 +16,7 @@ import { RADII, SHADOWS } from '../../../lib/theme';
 import { LocationInput } from '../../components/LocationInput';
 import { canonicalizeLocation } from '../../../lib/locations';
 import { prepareTireSizeFields } from '../../../lib/tire-size';
+import { plyForLoadRange } from '../../../lib/loadRange';
 
 type Field = { key: string; label: string; type?: string };
 // `location` is rendered with a dedicated LocationInput picker — see the
@@ -28,6 +29,8 @@ const FIELDS: Field[] = [
   { key: 'size', label: 'Size' },
   { key: 'season', label: 'Season' },
   { key: 'condition', label: 'Condition' },
+  { key: 'service_type', label: 'Service type' },
+  { key: 'load_range', label: 'Load range' },
   { key: 'tread_pct', label: 'Tread %', type: 'number' },
   { key: 'quantity', label: 'Quantity', type: 'number' },
   { key: 'price', label: 'Price', type: 'number' },
@@ -85,6 +88,8 @@ export default function EditTire() {
       size: tire.size,
       season: tire.season,
       condition: tire.condition,
+      service_type: tire.service_type || null,
+      load_range: tire.load_range || null,
       tread_pct: tire.tread_pct,
       quantity: tire.quantity,
       price: tire.price,
@@ -268,6 +273,11 @@ export default function EditTire() {
                   boxSizing: 'border-box',
                 }}
               />
+              {f.key === 'load_range' && plyForLoadRange(tire.load_range) != null && (
+                <p style={{ fontSize: 12, color: COLORS.textMuted, margin: '6px 0 0' }}>
+                  {plyForLoadRange(tire.load_range)}-ply equivalent
+                </p>
+              )}
             </>
           )}
         </div>
