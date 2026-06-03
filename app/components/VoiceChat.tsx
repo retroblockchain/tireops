@@ -166,6 +166,10 @@ export default function VoiceChat({
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<Voice>(DEFAULT_VOICE);
+  // Text-only mode — when on, mic capture is disabled, Whisper and TTS
+  // are skipped entirely, and the mic UI is hidden. Persisted in
+  // localStorage so the choice survives across sessions.
+  const [textOnly, setTextOnly] = useState(false);
   // Tracks whether we've finished the sessionStorage rehydrate pass. The
   // welcome message and the persist effect both gate on this so we don't
   // wipe stored chat or double-greet on a quick nav round-trip.
@@ -190,6 +194,14 @@ export default function VoiceChat({
   useEffect(() => {
     sendRef.current = send;
   });
+
+  // Hydrate text-only mode from localStorage on mount.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (localStorage.getItem('bs-text-only') === '1') setTextOnly(true);
+    } catch { /* storage unavailable */ }
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -456,6 +468,7 @@ export default function VoiceChat({
   // -------- STT (MediaRecorder + Whisper) --------
   const startRecording = async () => {
     if (recording || transcribing) return;
+    if (textOnly) return; // text-only mode: no mic, no Whisper
     setError(null);
     stopSpeaking();
     try {
@@ -520,6 +533,12 @@ export default function VoiceChat({
   };
 
   const transcribeAndSend = async (blob: Blob) => {
+    if (textOnly) {
+      // Defensive: startRecording is already gated, but if we ever land
+      // here in text-only mode, skip the Whisper call entirely.
+      setTranscribing(false);
+      return;
+    }
     try {
       const ext = fileExtFor(blob.type);
       const fd = new FormData();
@@ -805,8 +824,9 @@ export default function VoiceChat({
       }
 
       // Fire TTS the instant streaming ends. (Streaming the audio itself
-      // is already incremental via MSE inside speak().)
-      if (accumulatedText.trim()) {
+      // is already incremental via MSE inside speak().) Skipped entirely
+      // in text-only mode — no OpenAI TTS call fires.
+      if (accumulatedText.trim() && !textOnly) {
         void speak(accumulatedText.trim());
       }
     } catch (e) {
@@ -1582,27 +1602,29 @@ export default function VoiceChat({
           flexShrink: 0,
         }}
       >
-        <button
-          onClick={toggleMic}
-          disabled={micDisabled}
-          aria-label={recording ? 'stop recording' : 'start recording'}
-          aria-pressed={recording}
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: '50%',
-            border: 'none',
-            background: micBg,
-            color: '#fff',
-            fontSize: 28,
-            cursor: micDisabled ? 'not-allowed' : 'pointer',
-            opacity: micDisabled ? 0.5 : 1,
-            flexShrink: 0,
-            boxShadow: micGlow,
-          }}
-        >
-          {recording ? '■' : '🎤'}
-        </button>
+        {!textOnly && (
+          <button
+            onClick={toggleMic}
+            disabled={micDisabled}
+            aria-label={recording ? 'stop recording' : 'start recording'}
+            aria-pressed={recording}
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: '50%',
+              border: 'none',
+              background: micBg,
+              color: '#fff',
+              fontSize: 28,
+              cursor: micDisabled ? 'not-allowed' : 'pointer',
+              opacity: micDisabled ? 0.5 : 1,
+              flexShrink: 0,
+              boxShadow: micGlow,
+            }}
+          >
+            {recording ? '■' : '🎤'}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
@@ -1678,6 +1700,44 @@ export default function VoiceChat({
           Voice input not supported in this browser. Type your message instead.
         </p>
       )}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          marginTop: 8,
+          flexShrink: 0,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            const next = !textOnly;
+            setTextOnly(next);
+            if (next) stopSpeaking();
+            try {
+              localStorage.setItem('bs-text-only', next ? '1' : '0');
+            } catch { /* storage unavailable */ }
+          }}
+          aria-pressed={textOnly}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            padding: '4px 6px',
+            fontSize: 12,
+            fontWeight: 600,
+            color: textOnly ? COLORS.red : COLORS.textMuted,
+            cursor: 'pointer',
+            letterSpacing: 0.2,
+          }}
+          title={
+            textOnly
+              ? 'Text-only mode is on — mic and voice replies are disabled. Tap to turn off.'
+              : 'Switch to text-only mode (no mic, no voice replies).'
+          }
+        >
+          {textOnly ? '◉ Text-only mode' : '○ Text-only mode'}
+        </button>
+      </div>
     </>
   );
 
