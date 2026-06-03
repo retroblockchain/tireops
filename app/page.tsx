@@ -144,12 +144,15 @@ export default function Home() {
       style={{
         padding: 16,
         fontFamily: 'sans-serif',
+        width: '100%',
         maxWidth: 600,
         margin: '0 auto',
         color: COLORS.textBody,
         background: COLORS.bg,
         minHeight: '100dvh',
         boxSizing: 'border-box',
+        minWidth: 0,
+        overflowX: 'hidden',
       }}
     >
       {/* ----- Header: compact, makes room for the chat below ----- */}
