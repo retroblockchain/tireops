@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
     ? (requested as Voice)
     : DEFAULT_VOICE;
 
+  const t0 = Date.now();
   try {
     const upstream = await fetch(OPENAI_URL, {
       method: 'POST',
@@ -48,11 +49,13 @@ export async function POST(req: NextRequest) {
 
     if (!upstream.ok || !upstream.body) {
       const errBody = await upstream.text();
+      console.log(`[timing] tts FAIL ${upstream.status} in ${Date.now() - t0}ms (${text.length} chars)`);
       return Response.json(
         { error: `openai ${upstream.status}: ${errBody.slice(0, 300)}` },
         { status: 502 },
       );
     }
+    console.log(`[timing] tts first-byte in ${Date.now() - t0}ms (${text.length} chars)`);
 
     // Stream the upstream body straight through — no arrayBuffer() round trip.
     // Playback can start on the client as soon as the first MP3 frames arrive.

@@ -1237,6 +1237,7 @@ export async function POST(req: NextRequest) {
         controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'));
       };
 
+      const turnT0 = Date.now();
       try {
         for (let step = 0; step < 6; step++) {
           // Send a slim copy: capped at MAX_HISTORY_TURNS user turns, with
@@ -1247,6 +1248,7 @@ export async function POST(req: NextRequest) {
             messages,
             MAX_HISTORY_TURNS,
           );
+          const stepT0 = Date.now();
           const anthropicRes = await callAnthropicStream(requestMessages, system);
           if (!anthropicRes.ok || !anthropicRes.body) {
             const body = await anthropicRes.text().catch(() => '');
@@ -1272,9 +1274,15 @@ export async function POST(req: NextRequest) {
               b.type === 'tool_use',
           );
 
+          console.log(
+            `[timing] anthropic step ${step} in ${Date.now() - stepT0}ms ` +
+              `(history=${requestMessages.length} msgs, tools_used=${toolUses.length})`,
+          );
+
           if (toolUses.length === 0) {
             // Final assistant turn — close out the stream with the full
             // conversation so the client can persist it for next turn.
+            console.log(`[timing] anthropic turn total ${Date.now() - turnT0}ms (${step + 1} step${step === 0 ? '' : 's'})`);
             enqueue({ type: 'end', messages });
             controller.close();
             return;

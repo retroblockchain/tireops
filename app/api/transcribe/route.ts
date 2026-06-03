@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
   outForm.append('response_format', 'json');
 
   try {
+    const t0 = Date.now();
     const res = await fetch(OPENAI_URL, {
       method: 'POST',
       headers: {
@@ -40,12 +41,14 @@ export async function POST(req: NextRequest) {
     });
     if (!res.ok) {
       const body = await res.text();
+      console.log(`[timing] whisper FAIL ${res.status} in ${Date.now() - t0}ms`);
       return Response.json(
         { error: `openai ${res.status}: ${body.slice(0, 300)}` },
         { status: 502 },
       );
     }
     const data = (await res.json()) as { text?: string };
+    console.log(`[timing] whisper ok in ${Date.now() - t0}ms`);
     return Response.json({ text: data.text ?? '' });
   } catch (e: unknown) {
     return Response.json(
