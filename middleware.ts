@@ -1,5 +1,5 @@
 // TEMPORARY maintenance layer — branch: maintenance/support-404.
-// Intercepts every request and returns a self-contained 404 support page.
+// Intercepts every request and returns a self-contained 503 page.
 // The application underneath is untouched. To restore the site, revert
 // this commit (or redeploy the previous production deployment).
 import { NextResponse } from "next/server";
@@ -10,36 +10,42 @@ const PAGE = `<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>404 &mdash; Website Unavailable</title>
+<title>503 Service Unavailable</title>
 <style>
   html, body { height: 100%; margin: 0; }
   body {
-    display: flex; align-items: center; justify-content: center;
-    background: #f5f5f5; color: #222; text-align: center;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    padding: 24px; box-sizing: border-box;
+    background: #fcfcfc; color: #222;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    padding: 40px 24px; box-sizing: border-box;
+    display: flex; flex-direction: column; min-height: 100%;
   }
-  h1 { font-size: clamp(64px, 15vw, 128px); margin: 0 0 12px; font-weight: 700; color: #333; }
-  p { font-size: 18px; margin: 8px 0; line-height: 1.5; }
-  a { color: #0a66c2; text-decoration: none; }
-  a:hover { text-decoration: underline; }
+  main { flex: 1 0 auto; max-width: 40em; }
+  h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 .6rem; }
+  p { font-size: 1rem; margin: 0; line-height: 1.5; }
+  footer {
+    flex-shrink: 0; margin-top: 3rem;
+    font-size: .8rem; color: #767676;
+  }
 </style>
 </head>
 <body>
 <main>
-  <h1>404</h1>
-  <p>This website is currently unavailable.</p>
-  <p>For assistance, contact: <a href="mailto:RetroBlockchain@gmail.com">RetroBlockchain@gmail.com</a></p>
+  <h1>503 Service Unavailable</h1>
+  <p>The server is temporarily unable to service your request.</p>
 </main>
+<footer>Contact RetroBlockchain support: retroblockchain@gmail.com</footer>
 </body>
 </html>`;
 
 export function middleware() {
   return new NextResponse(PAGE, {
-    status: 404,
+    status: 503,
     headers: {
       "content-type": "text/html; charset=utf-8",
-      "cache-control": "no-store",
+      "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
+      "pragma": "no-cache",
+      "retry-after": "3600",
+      "x-robots-tag": "noindex, nofollow",
     },
   });
 }
