@@ -17,15 +17,10 @@ const PAGE = `<!DOCTYPE html>
     background: #fcfcfc; color: #222;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     padding: 40px 24px; box-sizing: border-box;
-    display: flex; flex-direction: column; min-height: 100%;
   }
-  main { flex: 1 0 auto; max-width: 40em; }
+  main { max-width: 40em; }
   h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 .6rem; }
   p { font-size: 1rem; margin: 0; line-height: 1.5; }
-  footer {
-    flex-shrink: 0; margin-top: 3rem;
-    font-size: .8rem; color: #767676;
-  }
 </style>
 </head>
 <body>
@@ -33,7 +28,6 @@ const PAGE = `<!DOCTYPE html>
   <h1>503 Service Unavailable</h1>
   <p>The server is temporarily unable to service your request.</p>
 </main>
-<footer>Contact RetroBlockchain support: retroblockchain@gmail.com</footer>
 </body>
 </html>`;
 
