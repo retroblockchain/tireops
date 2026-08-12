@@ -43,3 +43,21 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+# Local secrets and sensitive artifacts
+.env*
+!.env.example
+!.env*.example
+*.key
+*.crt
+*.p12
+*.pfx
+*.log
+*.dump
+*.bak
+*.backup
+*.sqlite
+*.sqlite3
+/dump/
+/dumps/
+/secrets/
+/credentials/
